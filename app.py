@@ -25,7 +25,7 @@ _load_dotenv()
 
 app = Flask(__name__)
 # Engine uses eventlet for asynchronous background execution tasks
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, async_mode='threading', cors_allowed_origins="*")
 
 COLORS = ["red", "blue", "green", "yellow", "white", "pink"]
 
