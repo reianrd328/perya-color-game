@@ -175,226 +175,236 @@
 
     <script>
         const socket = io();
-        let myUsername = "";
-        let isAdminAccount = false;
+    let myUsername = "";
+    let isAdminAccount = false;
 
-        function logMessage(msg) {
-            const log = document.getElementById('activity-log');
-            log.innerHTML += msg + "<br>";
-            log.scrollTop = log.scrollHeight;
-        }
+    function logMessage(msg) {
+        const log = document.getElementById('activity-log');
+        log.innerHTML += msg + "<br>";
+        log.scrollTop = log.scrollHeight;
+    }
 
-        function login() {
-            const u = document.getElementById('username').value.trim();
-            const p = document.getElementById('password').value;
-            if(!u) return alert("Please enter a username.");
-            myUsername = u;
-            socket.emit('join_game', { username: u, password: p });
-        }
-
-        socket.on('login_failed', (data) => {
-            alert(data.message);
-        });
-
-        socket.on('user_status', (data) => {
-            if(data.username.toLowerCase() === 'admin' || data.is_admin) {
-                myUsername = data.username;
-                document.getElementById('auth-section').style.display = 'none';
-                isAdminAccount = true;
-
-                document.getElementById('admin-dashboard').style.display = 'block';
-                document.getElementById('player-stats-row').style.display = 'none';
-                document.getElementById('voucher-row').style.display = 'none';
-                document.getElementById('clear-row').style.display = 'none';
-                logMessage("👑 Admin panel initialized successfully.");
-            } else if(data.username === myUsername) {
-                document.getElementById('auth-section').style.display = 'none';
-                isAdminAccount = false;
-
-                document.getElementById('balance-display').innerText = data.coins;
-                document.getElementById('total-coins-display').innerText = data.coins;
-                if(data.total_earned !== undefined) document.getElementById('total-earned-display').innerText = data.total_earned;
-                if(data.total_withdrawn !== undefined) document.getElementById('total-withdrawn-display').innerText = data.total_withdrawn;
-                logMessage("Logged in successfully as " + data.username);
-            }
-        });
-
-        /* --- Admin Operations --- */
-        function triggerRoll() { socket.emit('trigger_roll'); }
-        function generateCode() {
-            const amt = document.getElementById('voucher-amount').value;
-            socket.emit('generate_code', { amount: amt });
-        }
-        socket.on('code_generated', (data) => {
-            document.getElementById('generated-code-display').innerText = `Generated: ${data.code} (${data.amount} Coins)`;
-        });
-        function createPlayer() {
-            const user = document.getElementById('new-player-user').value.trim();
-            const coins = document.getElementById('new-player-coins').value;
-            if(!user) return;
-            socket.emit('create_player', { username: user, coins: coins });
-        }
-        socket.on('player_created', (data) => {
-            document.getElementById('creation-result').innerText = `Created User: ${data.username} | Temporary Pass: ${data.password}`;
-            document.getElementById('new-player-user').value = "";
-        });
-        function terminateUser(target) {
-            if(confirm(`Are you sure you want to terminate ${target}?`)) {
-                socket.emit('terminate_player', { username: target });
-            }
+    function login() {
+        const u = document.getElementById('username').value.trim();
+        const p = document.getElementById('password').value;
+        if(!u) return alert("Please enter a username.");
+        myUsername = u;
+        
+        // Local check: If they are logging in as admin, flag it early to guarantee layout shifts if backend events get dropped
+        if (u.toLowerCase() === 'admin') {
+            isAdminAccount = true;
         }
         
-        socket.on('roll_request', (data) => {
-            if(!isAdminAccount) return;
-            const block = document.getElementById('admin-requests-log');
-            if(block.innerText.includes("No active game requests")) block.innerHTML = "";
-            block.innerHTML += `<div id="req-roll-${data.username}">🎲 <b>${data.username}</b> requested a roll! <button class="action-btn" onclick="approveRoll('${data.username}')">Approve</button> <button class="deny-btn" onclick="denyRoll('${data.username}')">Deny</button></div>`;
-        });
+        socket.emit('join_game', { username: u, password: p });
+    }
 
-        socket.on('withdraw_request', (data) => {
-            if(!isAdminAccount) return;
-            const block = document.getElementById('admin-requests-log');
-            if(block.innerText.includes("No active game requests")) block.innerHTML = "";
-            block.innerHTML += `<div id="req-with-${data.username}">💰 <b>${data.username}</b> wants to cash out <b>${data.amount}</b> coins! <button class="action-btn" onclick="approveWithdraw('${data.username}')">Approve</button> <button class="deny-btn" onclick="denyWithdraw('${data.username}')">Deny</button></div>`;
-        });
+    socket.on('login_failed', (data) => {
+        alert(data.message);
+        isAdminAccount = false; // Reset flag if password was wrong
+    });
 
-        function approveRoll(user) { socket.emit('approve_roll', { username: user }); document.getElementById(`req-roll-${user}`)?.remove(); checkEmptyRequests(); }
-        function denyRoll(user) { socket.emit('deny_roll', { username: user }); document.getElementById(`req-roll-${user}`)?.remove(); checkEmptyRequests(); }
-        function approveWithdraw(user) { socket.emit('approve_withdraw', { username: user }); document.getElementById(`req-with-${user}`)?.remove(); checkEmptyRequests(); }
-        function denyWithdraw(user) { socket.emit('deny_withdraw', { username: user }); document.getElementById(`req-with-${user}`)?.remove(); checkEmptyRequests(); }
+    socket.on('user_status', (data) => {
+        console.log("Debug: Received user_status data:", data); // Check your browser console (F12) to see exactly what backend sent
         
-        function checkEmptyRequests() {
-            const block = document.getElementById('admin-requests-log');
-            if(!block.children.length || block.innerHTML.trim() === "") {
-                block.innerText = "No active game requests.";
-            }
-        }
+        // Fortified Admin verification block
+        if(isAdminAccount || (data && (data.is_admin || (data.username && data.username.toLowerCase() === 'admin')))) {
+            isAdminAccount = true;
+            myUsername = data.username || "admin";
+            
+            document.getElementById('auth-section').style.display = 'none';
+            document.getElementById('admin-dashboard').style.display = 'block';
+            document.getElementById('player-stats-row').style.display = 'none';
+            document.getElementById('voucher-row').style.display = 'none';
+            document.getElementById('clear-row').style.display = 'none';
+            logMessage("👑 Admin panel initialized successfully.");
+        } else if(data && data.username === myUsername) {
+            document.getElementById('auth-section').style.display = 'none';
+            isAdminAccount = false;
 
-        socket.on('user_list', (data) => {
-            if(!isAdminAccount) return;
-            document.getElementById('admin-total-circ').innerText = data.total_coins;
-            let html = "<ul>";
-            data.users.forEach(u => {
-                if(u.username !== "admin") {
-                    html += `<li><b>${u.username}</b> - Bal: ${u.coins} | Pass: <code>${u.password}</code> [${u.online ? '🟢 Online' : '🔴 Offline'}] <button class="term-btn" onclick="terminateUser('${u.username}')">Terminate</button></li>`;
-                }
+            document.getElementById('balance-display').innerText = data.coins;
+            document.getElementById('total-coins-display').innerText = data.coins;
+            if(data.total_earned !== undefined) document.getElementById('total-earned-display').innerText = data.total_earned;
+            if(data.total_withdrawn !== undefined) document.getElementById('total-withdrawn-display').innerText = data.total_withdrawn;
+            logMessage("Logged in successfully as " + data.username);
+        }
+    });
+
+    /* --- Admin Operations --- */
+    function triggerRoll() { socket.emit('trigger_roll'); }
+    function generateCode() {
+        const amt = document.getElementById('voucher-amount').value;
+        socket.emit('generate_code', { amount: amt });
+    }
+    socket.on('code_generated', (data) => {
+        document.getElementById('generated-code-display').innerText = `Generated: ${data.code} (${data.amount} Coins)`;
+    });
+    function createPlayer() {
+        const user = document.getElementById('new-player-user').value.trim();
+        const coins = document.getElementById('new-player-coins').value;
+        if(!user) return;
+        socket.emit('create_player', { username: user, coins: coins });
+    }
+    socket.on('player_created', (data) => {
+        document.getElementById('creation-result').innerText = `Created User: ${data.username} | Temporary Pass: ${data.password}`;
+        document.getElementById('new-player-user').value = "";
+    });
+    function terminateUser(target) {
+        if(confirm(`Are you sure you want to terminate ${target}?`)) {
+            socket.emit('terminate_player', { username: target });
+        }
+    }
+    
+    socket.on('roll_request', (data) => {
+        if(!isAdminAccount) return;
+        const block = document.getElementById('admin-requests-log');
+        if(block.innerText.includes("No active game requests")) block.innerHTML = "";
+        block.innerHTML += `<div id="req-roll-${data.username}">🎲 <b>${data.username}</b> requested a roll! <button class="action-btn" onclick="approveRoll('${data.username}')">Approve</button> <button class="deny-btn" onclick="denyRoll('${data.username}')">Deny</button></div>`;
+    });
+
+    socket.on('withdraw_request', (data) => {
+        if(!isAdminAccount) return;
+        const block = document.getElementById('admin-requests-log');
+        if(block.innerText.includes("No active game requests")) block.innerHTML = "";
+        block.innerHTML += `<div id="req-with-${data.username}">💰 <b>${data.username}</b> wants to cash out <b>${data.amount}</b> coins! <button class="action-btn" onclick="approveWithdraw('${data.username}')">Approve</button> <button class="deny-btn" onclick="denyWithdraw('${data.username}')">Deny</button></div>`;
+    });
+
+    function approveRoll(user) { socket.emit('approve_roll', { username: user }); document.getElementById(`req-roll-${user}`)?.remove(); checkEmptyRequests(); }
+    function denyRoll(user) { socket.emit('deny_roll', { username: user }); document.getElementById(`req-roll-${user}`)?.remove(); checkEmptyRequests(); }
+    function approveWithdraw(user) { socket.emit('approve_withdraw', { username: user }); document.getElementById(`req-with-${user}`)?.remove(); checkEmptyRequests(); }
+    function denyWithdraw(user) { socket.emit('deny_withdraw', { username: user }); document.getElementById(`req-with-${user}`)?.remove(); checkEmptyRequests(); }
+    
+    function checkEmptyRequests() {
+        const block = document.getElementById('admin-requests-log');
+        if(!block.children.length || block.innerHTML.trim() === "") {
+            block.innerText = "No active game requests.";
+        }
+    }
+
+    socket.on('user_list', (data) => {
+        if(!isAdminAccount) return;
+        document.getElementById('admin-total-circ').innerText = data.total_coins;
+        let html = "<ul>";
+        data.users.forEach(u => {
+            if(u.username !== "admin") {
+                html += `<li><b>${u.username}</b> - Bal: ${u.coins} | Pass: <code>${u.password}</code> [${u.online ? '🟢 Online' : '🔴 Offline'}] <button class="term-btn" onclick="terminateUser('${u.username}')">Terminate</button></li>`;
+            }
+        });
+        html += "</ul>";
+        document.getElementById('admin-user-list').innerHTML = html;
+    });
+
+    socket.on('admin_error', (data) => {
+        logMessage(`⚠️ System: ${data.message}`);
+    });
+
+    /* --- Player Gameplay Operations --- */
+    function requestRoll() {
+        if(!myUsername || isAdminAccount) return;
+        socket.emit('request_roll', { username: myUsername });
+    }
+    function requestWithdraw() {
+        if(!myUsername || isAdminAccount) return;
+        const amt = parseInt(document.getElementById('withdraw-amount').value);
+        if(!amt || amt <= 0) return alert("Enter a valid layout value to cashout.");
+        socket.emit('request_withdraw', { username: myUsername, amount: amt });
+    }
+    socket.on('roll_request_sent', (data) => { logMessage(data.message); });
+    socket.on('roll_denied', (data) => { alert(data.message); logMessage(`❌ ${data.message}`); });
+    socket.on('withdraw_status', (data) => {
+        logMessage(data.message);
+        if(data.coins !== undefined) {
+            document.getElementById('balance-display').innerText = data.coins;
+            document.getElementById('total-coins-display').innerText = data.coins;
+        }
+        if(data.total_withdrawn !== undefined) {
+            document.getElementById('total-withdrawn-display').innerText = data.total_withdrawn;
+        }
+    });
+
+    function placeBet(color) {
+        if(!myUsername) return alert("Please log in first!");
+        if(isAdminAccount) return alert("Admins are monitoring and cannot place bets.");
+        const amt = parseInt(document.getElementById('bet-amount').value);
+        socket.emit('place_bet', { username: myUsername, color: color, amount: amt });
+    }
+
+    socket.on('bet_placed', (data) => {
+        if(data.username === myUsername) {
+            document.getElementById('bet-' + data.color).innerText = data.color_total;
+            document.getElementById('balance-display').innerText = data.coins;
+            let staked = 0;
+            ['red','blue','green','yellow','white','pink'].forEach(c => {
+                staked += parseInt(document.getElementById('bet-' + c).innerText) || 0;
             });
-            html += "</ul>";
-            document.getElementById('admin-user-list').innerHTML = html;
-        });
-
-        socket.on('admin_error', (data) => {
-            logMessage(`⚠️ System: ${data.message}`);
-        });
-
-        /* --- Player Gameplay Operations --- */
-        function requestRoll() {
-            if(!myUsername || isAdminAccount) return;
-            socket.emit('request_roll', { username: myUsername });
+            document.getElementById('total-coins-display').innerText = data.coins + staked;
         }
-        function requestWithdraw() {
-            if(!myUsername || isAdminAccount) return;
-            const amt = parseInt(document.getElementById('withdraw-amount').value);
-            if(!amt || amt <= 0) return alert("Enter a valid layout value to cashout.");
-            socket.emit('request_withdraw', { username: myUsername, amount: amt });
-        }
-        socket.on('roll_request_sent', (data) => { logMessage(data.message); });
-        socket.on('roll_denied', (data) => { alert(data.message); logMessage(`❌ ${data.message}`); });
-        socket.on('withdraw_status', (data) => {
-            logMessage(data.message);
-            if(data.coins !== undefined) {
-                document.getElementById('balance-display').innerText = data.coins;
-                document.getElementById('total-coins-display').innerText = data.coins;
-            }
-            if(data.total_withdrawn !== undefined) {
-                document.getElementById('total-withdrawn-display').innerText = data.total_withdrawn;
-            }
-        });
+    });
 
-        function placeBet(color) {
-            if(!myUsername) return alert("Please log in first!");
-            if(isAdminAccount) return alert("Admins are monitoring and cannot place bets.");
-            const amt = parseInt(document.getElementById('bet-amount').value);
-            socket.emit('place_bet', { username: myUsername, color: color, amount: amt });
-        }
+    socket.on('bet_rejected', (data) => { alert(data.message); });
 
-        socket.on('bet_placed', (data) => {
-            if(data.username === myUsername) {
-                document.getElementById('bet-' + data.color).innerText = data.color_total;
-                document.getElementById('balance-display').innerText = data.coins;
-                let staked = 0;
-                ['red','blue','green','yellow','white','pink'].forEach(c => {
-                    staked += parseInt(document.getElementById('bet-' + c).innerText) || 0;
-                });
-                document.getElementById('total-coins-display').innerText = data.coins + staked;
-            }
-        });
+    function clearBets() {
+        if(!myUsername || isAdminAccount) return;
+        socket.emit('clear_bets', { username: myUsername });
+    }
 
-        socket.on('bet_rejected', (data) => { alert(data.message); });
-
-        function clearBets() {
-            if(!myUsername || isAdminAccount) return;
-            socket.emit('clear_bets', { username: myUsername });
-        }
-
-        socket.on('bets_cleared', (data) => {
-            if(data.username === myUsername) {
-                ['red','blue','green','yellow','white','pink'].forEach(c => {
-                    document.getElementById('bet-' + c).innerText = "0";
-                });
-                document.getElementById('balance-display').innerText = data.coins;
-                document.getElementById('total-coins-display').innerText = data.coins;
-            }
-        });
-
-        function redeemCode() {
-            if(!myUsername) return alert("Log in before redeeming a code.");
-            const code = document.getElementById('voucher-code').value.trim();
-            if(!code) return;
-            socket.emit('redeem_code', { username: myUsername, code: code });
-        }
-
-        socket.on('redeem_result', (data) => {
-            alert(data.message);
-            if(data.success) document.getElementById('voucher-code').value = "";
-        });
-
-        socket.on('table_update', (data) => { logMessage(data.message); });
-
-        socket.on('dice_rolling', () => {
-            logMessage("🎲 Dice container shaking...");
-            let count = 0;
-            const colors = ['red','blue','green','yellow','white','pink'];
-            const interval = setInterval(() => {
-                document.getElementById('die0').style.backgroundColor = colors[Math.floor(Math.random()*6)];
-                document.getElementById('die1').style.backgroundColor = colors[Math.floor(Math.random()*6)];
-                document.getElementById('die2').style.backgroundColor = colors[Math.floor(Math.random()*6)];
-                count++;
-                if(count > 10) clearInterval(interval);
-            }, 150);
-        });
-
-        socket.on('roll_results', (data) => {
-            const dice = data.dice;
-            document.getElementById('die0').style.backgroundColor = dice[0];
-            document.getElementById('die1').style.backgroundColor = dice[1];
-            document.getElementById('die2').style.backgroundColor = dice[2];
-
-            logMessage(`✨ Result: ${dice[0].toUpperCase()} | ${dice[1].toUpperCase()} | ${dice[2].toUpperCase()}`);
-
+    socket.on('bets_cleared', (data) => {
+        if(data.username === myUsername) {
             ['red','blue','green','yellow','white','pink'].forEach(c => {
                 document.getElementById('bet-' + c).innerText = "0";
             });
+            document.getElementById('balance-display').innerText = data.coins;
+            document.getElementById('total-coins-display').innerText = data.coins;
+        }
+    });
 
-            if(myUsername && data.payouts && data.payouts[myUsername] !== undefined) {
-                logMessage(`🎉 You won/returned ${data.payouts[myUsername]} coins!`);
-            }
+    function redeemCode() {
+        if(!myUsername) return alert("Log in before redeeming a code.");
+        const code = document.getElementById('voucher-code').value.trim();
+        if(!code) return;
+        socket.emit('redeem_code', { username: myUsername, code: code });
+    }
+
+    socket.on('redeem_result', (data) => {
+        alert(data.message);
+        if(data.success) document.getElementById('voucher-code').value = "";
+    });
+
+    socket.on('table_update', (data) => { logMessage(data.message); });
+
+    socket.on('dice_rolling', () => {
+        logMessage("🎲 Dice container shaking...");
+        let count = 0;
+        const colors = ['red','blue','green','yellow','white','pink'];
+        const interval = setInterval(() => {
+            document.getElementById('die0').style.backgroundColor = colors[Math.floor(Math.random()*6)];
+            document.getElementById('die1').style.backgroundColor = colors[Math.floor(Math.random()*6)];
+            document.getElementById('die2').style.backgroundColor = colors[Math.floor(Math.random()*6)];
+            count++;
+            if(count > 10) clearInterval(interval);
+        }, 150);
+    });
+
+    socket.on('roll_results', (data) => {
+        const dice = data.dice;
+        document.getElementById('die0').style.backgroundColor = dice[0];
+        document.getElementById('die1').style.backgroundColor = dice[1];
+        document.getElementById('die2').style.backgroundColor = dice[2];
+
+        logMessage(`✨ Result: ${dice[0].toUpperCase()} | ${dice[1].toUpperCase()} | ${dice[2].toUpperCase()}`);
+
+        ['red','blue','green','yellow','white','pink'].forEach(c => {
+            document.getElementById('bet-' + c).innerText = "0";
         });
 
-        socket.on('force_logout', (data) => {
-            alert(data.message);
-            window.location.reload();
-        });
+        if(myUsername && data.payouts && data.payouts[myUsername] !== undefined) {
+            logMessage(`🎉 You won/returned ${data.payouts[myUsername]} coins!`);
+        }
+    });
+
+    socket.on('force_logout', (data) => {
+        alert(data.message);
+        window.location.reload();
+    });
     </script>
 </body>
 </html>
