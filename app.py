@@ -9,15 +9,15 @@ from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, emit
 
 # Connect to Aiven MySQL using PyMySQL
-db = pymysql.connect(
+# Change this inside your function if it recreates a connection:
+conn = pymysql.connect(
     host="mysql-1dbccf57-dropfarm341-f09c.e.aivencloud.com",
     user="avnadmin",
-    password="YOUR_ACTUAL_AIVEN_PASSWORD_HERE",
+    password="AVNS_-suhnyilR-ApxD6Df54",
     database="defaultdb",
     port=27671,
     cursorclass=pymysql.cursors.DictCursor
 )
-
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
 # Crucial: Ensure this line exists right below your imports/db config!
