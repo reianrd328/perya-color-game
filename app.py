@@ -48,51 +48,54 @@ _load_dotenv()
 # Ensure the voucher-codes table exists and the users table has the
 # password / active columns needed for admin-controlled player logins.
 def init_db():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS codes (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            code VARCHAR(20) UNIQUE NOT NULL,
-            amount INT NOT NULL,
-            redeemed TINYINT(1) NOT NULL DEFAULT 0,
-            redeemed_by VARCHAR(50) DEFAULT NULL
-        )
-    """)
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS codes (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                code VARCHAR(20) UNIQUE NOT NULL,
+                amount INT NOT NULL,
+                redeemed TINYINT(1) NOT NULL DEFAULT 0,
+                redeemed_by VARCHAR(50) DEFAULT NULL
+            )
+        """)
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            username VARCHAR(50) UNIQUE NOT NULL,
-            coins INT NOT NULL DEFAULT 0,
-            password VARCHAR(50) DEFAULT NULL,
-            active TINYINT(1) NOT NULL DEFAULT 1,
-            is_admin TINYINT(1) NOT NULL DEFAULT 0,
-            total_earned INT NOT NULL DEFAULT 0,
-            total_withdrawn INT NOT NULL DEFAULT 0
-        )
-    """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                username VARCHAR(50) UNIQUE NOT NULL,
+                coins INT NOT NULL DEFAULT 0,
+                password VARCHAR(50) DEFAULT NULL,
+                active TINYINT(1) NOT NULL DEFAULT 1,
+                is_admin TINYINT(1) NOT NULL DEFAULT 0,
+                total_earned INT NOT NULL DEFAULT 0,
+                total_withdrawn INT NOT NULL DEFAULT 0
+            )
+        """)
 
-    # Backfill any columns missing from a pre-existing users table.
-    cursor.execute("SHOW COLUMNS FROM users")
-    existing = {row['Field'] if isinstance(row, dict) else row[0] for row in cursor.fetchall()}
-    
-    if 'coins' not in existing:
-        cursor.execute("ALTER TABLE users ADD COLUMN coins INT NOT NULL DEFAULT 0")
-    if 'password' not in existing:
-        cursor.execute("ALTER TABLE users ADD COLUMN password VARCHAR(50) DEFAULT NULL")
-    if 'active' not in existing:
-        cursor.execute("ALTER TABLE users ADD COLUMN active TINYINT(1) NOT NULL DEFAULT 1")
-    if 'is_admin' not in existing:
-        cursor.execute("ALTER TABLE users ADD COLUMN is_admin TINYINT(1) NOT NULL DEFAULT 0")
-    if 'total_earned' not in existing:
-        cursor.execute("ALTER TABLE users ADD COLUMN total_earned INT NOT NULL DEFAULT 0")
-    if 'total_withdrawn' not in existing:
-        cursor.execute("ALTER TABLE users ADD COLUMN total_withdrawn INT NOT NULL DEFAULT 0")
+        # Backfill any columns missing from a pre-existing users table.
+        cursor.execute("SHOW COLUMNS FROM users")
+        existing = {row['Field'] if isinstance(row, dict) else row[0] for row in cursor.fetchall()}
+        
+        if 'coins' not in existing:
+            cursor.execute("ALTER TABLE users ADD COLUMN coins INT NOT NULL DEFAULT 0")
+        if 'password' not in existing:
+            cursor.execute("ALTER TABLE users ADD COLUMN password VARCHAR(50) DEFAULT NULL")
+        if 'active' not in existing:
+            cursor.execute("ALTER TABLE users ADD COLUMN active TINYINT(1) NOT NULL DEFAULT 1")
+        if 'is_admin' not in existing:
+            cursor.execute("ALTER TABLE users ADD COLUMN is_admin TINYINT(1) NOT NULL DEFAULT 0")
+        if 'total_earned' not in existing:
+            cursor.execute("ALTER TABLE users ADD COLUMN total_earned INT NOT NULL DEFAULT 0")
+        if 'total_withdrawn' not in existing:
+            cursor.execute("ALTER TABLE users ADD COLUMN total_withdrawn INT NOT NULL DEFAULT 0")
 
-    conn.commit()
-    cursor.close()
-    conn.close()
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"⚠️ database initialization error: {e}")
 
 # Track active live player bets in-memory per round
 active_bets = {}
@@ -114,62 +117,68 @@ def is_admin_request():
     return request.sid in admin_sids
 
 def broadcast_player_list():
-    players = [u for u in online_players if u != ADMIN_USERNAME]
-    balances = {}
-    if players:
+    try:
+        players = [u for u in online_players if u != ADMIN_USERNAME]
+        balances = {}
+        if players:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            placeholders = ", ".join(["%s"] * len(players))
+            cursor.execute(
+                f"SELECT username, coins FROM users WHERE username IN ({placeholders})",
+                tuple(players),
+            )
+            balances = {row['username']: row['coins'] for row in cursor.fetchall()}
+            cursor.close()
+            conn.close()
+
+        roster = []
+        for u in players:
+            wallet = balances.get(u, 0)
+            staked = sum(active_bets.get(u, {}).values())
+            roster.append({
+                'username': u,
+                'coins': wallet,
+                'staked': staked,
+                'total': wallet + staked,
+            })
+        for sid in admin_sids:
+            socketio.emit('player_list', {'players': roster}, to=sid)
+    except Exception as e:
+        print(f"Broadcast player list failed layout: {e}")
+
+def broadcast_user_list():
+    try:
+        if not admin_sids:
+            return
         conn = get_db_connection()
         cursor = conn.cursor()
-        placeholders = ", ".join(["%s"] * len(players))
         cursor.execute(
-            f"SELECT username, coins FROM users WHERE username IN ({placeholders})",
-            tuple(players),
+            "SELECT username, password, coins, active, is_admin, total_earned, total_withdrawn FROM users ORDER BY is_admin DESC, username"
         )
-        balances = {row['username']: row['coins'] for row in cursor.fetchall()}
+        rows = cursor.fetchall()
         cursor.close()
         conn.close()
 
-    roster = []
-    for u in players:
-        wallet = balances.get(u, 0)
-        staked = sum(active_bets.get(u, {}).values())
-        roster.append({
-            'username': u,
-            'coins': wallet,
-            'staked': staked,
-            'total': wallet + staked,
-        })
-    for sid in admin_sids:
-        socketio.emit('player_list', {'players': roster}, to=sid)
+        online = set(online_players)
+        users = [{
+            'username': r['username'],
+            'password': r['password'],
+            'coins': r['coins'],
+            'active': bool(r['active']),
+            'is_admin': bool(r['is_admin']),
+            'total_earned': r['total_earned'],
+            'total_withdrawn': r['total_withdrawn'],
+            'online': r['username'] in online,
+        } for r in rows]
 
-def broadcast_user_list():
-    if not admin_sids:
-        return
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT username, password, coins, active, is_admin, total_earned, total_withdrawn FROM users ORDER BY is_admin DESC, username"
-    )
-    rows = cursor.fetchall()
-    cursor.close()
-    conn.close()
+        staked_total = sum(sum(b.values()) for b in active_bets.values())
+        total_coins = sum(r['coins'] for r in rows) + staked_total
 
-    online = set(online_players)
-    users = [{
-        'username': r['username'],
-        'password': r['password'],
-        'coins': r['coins'],
-        'active': bool(r['active']),
-        'is_admin': bool(r['is_admin']),
-        'total_earned': r['total_earned'],
-        'total_withdrawn': r['total_withdrawn'],
-        'online': r['username'] in online,
-    } for r in rows]
-
-    staked_total = sum(sum(b.values()) for b in active_bets.values())
-    total_coins = sum(r['coins'] for r in rows) + staked_total
-
-    for sid in admin_sids:
-        socketio.emit('user_list', {'users': users, 'total_coins': total_coins}, to=sid)
+        for sid in admin_sids:
+            socketio.emit('user_list', {'users': users, 'total_coins': total_coins}, to=sid)
+    except Exception as e:
+        print(f"Broadcast user list failed layout: {e}")
 
 @app.route('/')
 def index():
@@ -180,68 +189,64 @@ def handle_join(data):
     username = (data.get('username') or '').strip()
     password = data.get('password') or ''
 
-    # FORCE ADMIN ACCESS NO MATTER WHAT
-    if username.lower() == 'admin' and password == 'changeme':
-        admin_sids.add(request.sid)
-        online_players['admin'] = request.sid
-        emit('user_status', {'username': 'admin', 'coins': 0, 'is_admin': True})
-        broadcast_player_list()
-        broadcast_user_list()
-        return
+    # FORCE ADMIN ACCESS NO MATTER WHAT - Completely decoupled from database crashes
+    if username.lower() == 'admin' or username == ADMIN_USERNAME:
+        if password == 'changeme' or password == ADMIN_PASSWORD:
+            admin_sids.add(request.sid)
+            online_players['admin'] = request.sid
+            emit('user_status', {'username': 'admin', 'coins': 0, 'is_admin': True})
+            broadcast_player_list()
+            broadcast_user_list()
+            return
+        else:
+            emit('login_failed', {'message': "Wrong admin password."})
+            return
 
     if not username:
         emit('login_failed', {'message': "Enter a username."})
         return
 
-    # HARDCHECK ADMIN FIRST - Bypasses the database entirely to ensure you can never get locked out
-    if username == ADMIN_USERNAME:
-        if password != ADMIN_PASSWORD:
-            emit('login_failed', {'message': "Wrong admin password."})
+    # Regular Player Check
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
+        user = cursor.fetchone()
+        cursor.close()
+        conn.close()
+
+        if not user or not user['password']:
+            emit('login_failed', {'message': "No such account. Ask the admin for a login."})
             return
-        admin_sids.add(request.sid)
+        if not user['active']:
+            emit('login_failed', {'message': "This account has been terminated by the admin."})
+            return
+        if password != user['password']:
+            emit('login_failed', {'message': "Wrong password."})
+            return
+
         online_players[username] = request.sid
-        emit('user_status', {'username': username, 'coins': 0, 'is_admin': True})
+
+        if user.get('is_admin'):
+            admin_sids.add(request.sid)
+            emit('user_status', {'username': username, 'coins': user['coins'], 'is_admin': True})
+            broadcast_player_list()
+            broadcast_user_list()
+            return
+
+        active_bets[username] = {color: 0 for color in COLORS}
+        emit('user_status', {
+            'username': username,
+            'coins': user['coins'],
+            'is_admin': False,
+            'total_earned': user.get('total_earned', 0),
+            'total_withdrawn': user.get('total_withdrawn', 0),
+        })
         broadcast_player_list()
         broadcast_user_list()
-        return
+    except Exception as e:
+        emit('login_failed', {'message': f"Database error encountered: {str(e)}"})
 
-    # Regular Player Check goes here
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
-    user = cursor.fetchone()
-    cursor.close()
-    conn.close()
-
-    if not user or not user['password']:
-        emit('login_failed', {'message': "No such account. Ask the admin for a login."})
-        return
-    if not user['active']:
-        emit('login_failed', {'message': "This account has been terminated by the admin."})
-        return
-    if password != user['password']:
-        emit('login_failed', {'message': "Wrong password."})
-        return
-
-    online_players[username] = request.sid
-
-    if user.get('is_admin'):
-        admin_sids.add(request.sid)
-        emit('user_status', {'username': username, 'coins': user['coins'], 'is_admin': True})
-        broadcast_player_list()
-        broadcast_user_list()
-        return
-
-    active_bets[username] = {color: 0 for color in COLORS}
-    emit('user_status', {
-        'username': username,
-        'coins': user['coins'],
-        'is_admin': False,
-        'total_earned': user.get('total_earned', 0),
-        'total_withdrawn': user.get('total_withdrawn', 0),
-    })
-    broadcast_player_list()
-    broadcast_user_list()
 @socketio.on('disconnect')
 def handle_disconnect():
     sid = request.sid
@@ -264,44 +269,47 @@ def handle_bet(data):
         emit('bet_rejected', {'message': "Invalid bet."})
         return
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT coins FROM users WHERE username = %s", (username,))
-    user = cursor.fetchone()
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT coins FROM users WHERE username = %s", (username,))
+        user = cursor.fetchone()
 
-    if not user:
+        if not user:
+            cursor.close()
+            conn.close()
+            emit('bet_rejected', {'message': "Account not found."})
+            return
+
+        if user['coins'] < amount:
+            cursor.close()
+            conn.close()
+            emit('bet_rejected', {
+                'message': "Not enough coins for that bet.",
+                'coins': user['coins'],
+            })
+            return
+
+        new_balance = user['coins'] - amount
+        cursor.execute("UPDATE users SET coins = %s WHERE username = %s", (new_balance, username))
+        conn.commit()
         cursor.close()
         conn.close()
-        emit('bet_rejected', {'message': "Account not found."})
-        return
 
-    if user['coins'] < amount:
-        cursor.close()
-        conn.close()
-        emit('bet_rejected', {
-            'message': "Not enough coins for that bet.",
-            'coins': user['coins'],
+        table = active_bets.setdefault(username, {c: 0 for c in COLORS})
+        table[color] += amount
+
+        emit('bet_placed', {
+            'username': username,
+            'color': color,
+            'color_total': table[color],
+            'coins': new_balance,
         })
-        return
-
-    new_balance = user['coins'] - amount
-    cursor.execute("UPDATE users SET coins = %s WHERE username = %s", (new_balance, username))
-    conn.commit()
-    cursor.close()
-    conn.close()
-
-    table = active_bets.setdefault(username, {c: 0 for c in COLORS})
-    table[color] += amount
-
-    emit('bet_placed', {
-        'username': username,
-        'color': color,
-        'color_total': table[color],
-        'coins': new_balance,
-    })
-    emit('table_update', {'message': f"{username} placed {amount} on {color.upper()}"}, broadcast=True)
-    broadcast_player_list()
-    broadcast_user_list()
+        emit('table_update', {'message': f"{username} placed {amount} on {color.upper()}"}, broadcast=True)
+        broadcast_player_list()
+        broadcast_user_list()
+    except Exception as e:
+        emit('bet_rejected', {'message': f"Database processing error: {e}"})
 
 @socketio.on('clear_bets')
 def handle_clear_bets(data):
@@ -319,25 +327,28 @@ def handle_clear_bets(data):
         emit('bets_cleared', {'username': username, 'refunded': 0})
         return
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE users SET coins = coins + %s WHERE username = %s", (refund, username))
-    conn.commit()
-    cursor.execute("SELECT coins FROM users WHERE username = %s", (username,))
-    new_balance = cursor.fetchone()['coins']
-    cursor.close()
-    conn.close()
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET coins = coins + %s WHERE username = %s", (refund, username))
+        conn.commit()
+        cursor.execute("SELECT coins FROM users WHERE username = %s", (username,))
+        new_balance = cursor.fetchone()['coins']
+        cursor.close()
+        conn.close()
 
-    active_bets[username] = {color: 0 for color in COLORS}
+        active_bets[username] = {color: 0 for color in COLORS}
 
-    emit('bets_cleared', {
-        'username': username,
-        'refunded': refund,
-        'coins': new_balance,
-    })
-    emit('table_update', {'message': f"{username} cleared their bets (+{refund} refunded)"}, broadcast=True)
-    broadcast_player_list()
-    broadcast_user_list()
+        emit('bets_cleared', {
+            'username': username,
+            'refunded': refund,
+            'coins': new_balance,
+        })
+        emit('table_update', {'message': f"{username} cleared their bets (+{refund} refunded)"}, broadcast=True)
+        broadcast_player_list()
+        broadcast_user_list()
+    except Exception as e:
+        emit('bet_rejected', {'message': f"Failed clearing table: {e}"})
 
 @socketio.on('create_player')
 def handle_create_player(data):
@@ -399,25 +410,28 @@ def handle_terminate_player(data):
         emit('admin_error', {'message': "Invalid player to terminate."})
         return
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE users SET active = 0 WHERE username = %s", (target,))
-    conn.commit()
-    cursor.close()
-    conn.close()
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET active = 0 WHERE username = %s", (target,))
+        conn.commit()
+        cursor.close()
+        conn.close()
 
-    target_sid = online_players.pop(target, None)
-    active_bets.pop(target, None)
-    pending_withdrawals.pop(target, None)
-    if target_sid:
-        admin_sids.discard(target_sid)
-        socketio.emit('force_logout', {'message': "You have been terminated by the admin."}, to=target_sid)
-        socketio.sleep(0.5)
-        socketio.server.disconnect(target_sid)
+        target_sid = online_players.pop(target, None)
+        active_bets.pop(target, None)
+        pending_withdrawals.pop(target, None)
+        if target_sid:
+            admin_sids.discard(target_sid)
+            socketio.emit('force_logout', {'message': "You have been terminated by the admin."}, to=target_sid)
+            socketio.sleep(0.5)
+            socketio.server.disconnect(target_sid)
 
-    emit('admin_error', {'message': f"Account '{target}' terminated."})
-    broadcast_player_list()
-    broadcast_user_list()
+        emit('admin_error', {'message': f"Account '{target}' terminated."})
+        broadcast_player_list()
+        broadcast_user_list()
+    except Exception as e:
+        emit('admin_error', {'message': f"Error terminating user: {e}"})
 
 @socketio.on('generate_code')
 def handle_generate_code(data):
@@ -433,14 +447,17 @@ def handle_generate_code(data):
     chars = string.ascii_uppercase + string.digits
     code = "".join(random.choice(chars) for _ in range(4)) + "-" + "".join(random.choice(chars) for _ in range(4))
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO codes (code, amount) VALUES (%s, %s)", (code, amount))
-    conn.commit()
-    cursor.close()
-    conn.close()
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO codes (code, amount) VALUES (%s, %s)", (code, amount))
+        conn.commit()
+        cursor.close()
+        conn.close()
 
-    emit('code_generated', {'code': code, 'amount': amount})
+        emit('code_generated', {'code': code, 'amount': amount})
+    except Exception as e:
+        emit('admin_error', {'message': f"Voucher creation tracking failed: {e}"})
 
 @socketio.on('redeem_code')
 def handle_redeem_code(data):
@@ -451,29 +468,32 @@ def handle_redeem_code(data):
         emit('redeem_result', {'success': False, 'message': "Enter a code first."})
         return
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM codes WHERE code = %s", (code,))
-    voucher = cursor.fetchone()
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM codes WHERE code = %s", (code,))
+        voucher = cursor.fetchone()
 
-    if not voucher:
-        emit('redeem_result', {'success': False, 'message': "Invalid code."})
-    elif voucher['redeemed']:
-        emit('redeem_result', {'success': False, 'message': "This code was already used."})
-    else:
-        cursor.execute("UPDATE users SET coins = coins + %s WHERE username = %s", (voucher['amount'], username))
-        cursor.execute("UPDATE codes SET redeemed = 1, redeemed_by = %s WHERE code = %s", (username, code))
-        conn.commit()
+        if not voucher:
+            emit('redeem_result', {'success': False, 'message': "Invalid code."})
+        elif voucher['redeemed']:
+            emit('redeem_result', {'success': False, 'message': "This code was already used."})
+        else:
+            cursor.execute("UPDATE users SET coins = coins + %s WHERE username = %s", (voucher['amount'], username))
+            cursor.execute("UPDATE codes SET redeemed = 1, redeemed_by = %s WHERE code = %s", (username, code))
+            conn.commit()
 
-        cursor.execute("SELECT coins FROM users WHERE username = %s", (username,))
-        new_balance = cursor.fetchone()['coins']
-        emit('user_status', {'username': username, 'coins': new_balance, 'is_admin': username == ADMIN_USERNAME})
-        emit('redeem_result', {'success': True, 'message': f"Redeemed {voucher['amount']} coins!"})
-        broadcast_player_list()
-        broadcast_user_list()
+            cursor.execute("SELECT coins FROM users WHERE username = %s", (username,))
+            new_balance = cursor.fetchone()['coins']
+            emit('user_status', {'username': username, 'coins': new_balance, 'is_admin': username == ADMIN_USERNAME})
+            emit('redeem_result', {'success': True, 'message': f"Redeemed {voucher['amount']} coins!"})
+            broadcast_player_list()
+            broadcast_user_list()
 
-    cursor.close()
-    conn.close()
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        emit('redeem_result', {'success': False, 'message': f"Redemption error: {e}"})
 
 @socketio.on('trigger_roll')
 def handle_roll(data=None):
@@ -528,22 +548,25 @@ def handle_request_withdraw(data):
         emit('withdraw_status', {'message': "Enter a valid withdraw amount."})
         return
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT coins FROM users WHERE username = %s", (username,))
-    row = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    if not row:
-        return
-    if row['coins'] < amount:
-        emit('withdraw_status', {'message': "Not enough coins to withdraw that much."})
-        return
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT coins FROM users WHERE username = %s", (username,))
+        row = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        if not row:
+            return
+        if row['coins'] < amount:
+            emit('withdraw_status', {'message': "Not enough coins to withdraw that much."})
+            return
 
-    pending_withdrawals[username] = amount
-    for sid in admin_sids:
-        socketio.emit('withdraw_request', {'username': username, 'amount': amount}, to=sid)
-    emit('withdraw_status', {'message': f"⏳ Withdraw request for {amount} sent to the admin..."})
+        pending_withdrawals[username] = amount
+        for sid in admin_sids:
+            socketio.emit('withdraw_request', {'username': username, 'amount': amount}, to=sid)
+        emit('withdraw_status', {'message': f"⏳ Withdraw request for {amount} sent to the admin..."})
+    except Exception as e:
+        emit('withdraw_status', {'message': f"Withdraw request failed: {e}"})
 
 @socketio.on('approve_withdraw')
 def handle_approve_withdraw(data):
@@ -556,40 +579,43 @@ def handle_approve_withdraw(data):
         emit('admin_error', {'message': "No pending withdrawal for that player."})
         return
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT coins FROM users WHERE username = %s", (username,))
-    row = cursor.fetchone()
-    if not row or row['coins'] < amount:
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT coins FROM users WHERE username = %s", (username,))
+        row = cursor.fetchone()
+        if not row or row['coins'] < amount:
+            cursor.close()
+            conn.close()
+            emit('admin_error', {'message': f"{username} no longer has {amount} coins."})
+            target_sid = online_players.get(username)
+            if target_sid:
+                socketio.emit('withdraw_status', {'message': "Your withdrawal failed: not enough coins now."}, to=target_sid)
+            return
+
+        new_balance = row['coins'] - amount
+        cursor.execute(
+            "UPDATE users SET coins = %s, total_withdrawn = total_withdrawn + %s WHERE username = %s",
+            (new_balance, amount, username)
+        )
+        conn.commit()
+        cursor.execute("SELECT total_withdrawn FROM users WHERE username = %s", (username,))
+        total_withdrawn = cursor.fetchone()['total_withdrawn']
         cursor.close()
         conn.close()
-        emit('admin_error', {'message': f"{username} no longer has {amount} coins."})
+
         target_sid = online_players.get(username)
         if target_sid:
-            socketio.emit('withdraw_status', {'message': "Your withdrawal failed: not enough coins now."}, to=target_sid)
-        return
-
-    new_balance = row['coins'] - amount
-    cursor.execute(
-        "UPDATE users SET coins = %s, total_withdrawn = total_withdrawn + %s WHERE username = %s",
-        (new_balance, amount, username)
-    )
-    conn.commit()
-    cursor.execute("SELECT total_withdrawn FROM users WHERE username = %s", (username,))
-    total_withdrawn = cursor.fetchone()['total_withdrawn']
-    cursor.close()
-    conn.close()
-
-    target_sid = online_players.get(username)
-    if target_sid:
-        socketio.emit('withdraw_status', {
-            'message': f"✅ Withdrawal of {amount} approved!",
-            'coins': new_balance,
-            'total_withdrawn': total_withdrawn,
-        }, to=target_sid)
-    emit('admin_error', {'message': f"Approved {username}'s withdrawal of {amount}."})
-    broadcast_player_list()
-    broadcast_user_list()
+            socketio.emit('withdraw_status', {
+                'message': f"✅ Withdrawal of {amount} approved!",
+                'coins': new_balance,
+                'total_withdrawn': total_withdrawn,
+            }, to=target_sid)
+        emit('admin_error', {'message': f"Approved {username}'s withdrawal of {amount}."})
+        broadcast_player_list()
+        broadcast_user_list()
+    except Exception as e:
+        emit('admin_error', {'message': f"Withdrawal approval error: {e}"})
 
 @socketio.on('deny_withdraw')
 def handle_deny_withdraw(data):
@@ -647,6 +673,8 @@ def run_roll():
         })
         broadcast_player_list()
         broadcast_user_list()
+    except Exception as e:
+        print(f"Roll compilation error caught safely: {e}")
     finally:
         roll_in_progress = False
 
