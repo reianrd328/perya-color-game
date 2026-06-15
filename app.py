@@ -10,13 +10,14 @@ from flask_socketio import SocketIO, emit
 
 # Connect to Aiven MySQL using PyMySQL
 # Change this inside your function if it recreates a connection:
-conn = pymysql.connect(
+db = pymysql.connect(
     host="mysql-1dbccf57-dropfarm341-f09c.e.aivencloud.com",
     user="avnadmin",
-    password="AVNS_-suhnyilR-ApxD6Df54",
+    password="YOUR_ACTUAL_AIVEN_PASSWORD_HERE",
     database="defaultdb",
     port=27671,
-    cursorclass=pymysql.cursors.DictCursor
+    cursorclass=pymysql.cursors.DictCursor,
+    ssl={'ssl': {}}  # <-- ADD THIS CRUCIAL LINE HERE!
 )
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
