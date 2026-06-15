@@ -1,24 +1,25 @@
 
 
+#al: This MUST be the absolute first thing in the file!
 from gevent import monkey
-monkey.patch_all()  # Crucial: This MUST be the absolute first thing in the file!
+monkey.patch_all()  # Must stay at the absolute top!
 
 import os
 import pymysql
 from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, emit
 
-# Connect to Aiven MySQL using PyMySQL
-# Change this inside your function if it recreates a connection:
+# Using 'db' ensures all your existing app queries work without breaking
 db = pymysql.connect(
     host="mysql-1dbccf57-dropfarm341-f09c.e.aivencloud.com",
     user="avnadmin",
-    password="AVNS_-suhnyilR-ApxD6Df54",  # Paste your real Aiven password here
+    password="YOUR_REAL_AIVEN_PASSWORD",  # Put your real password string here
     database="defaultdb",
     port=27671,
     cursorclass=pymysql.cursors.DictCursor,
-    ssl={'ssl': {}}  # <-- ADD THIS CRUCIAL LINE HERE!
+    ssl={'ssl': {}}
 )
+
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
 # Crucial: Ensure this line exists right below your imports/db config!
