@@ -61,6 +61,8 @@
         .log-box { background-color: #111; padding: 10px; border-radius: 6px; height: 80px; overflow-y: auto; font-size: 13px; color: #aaa; text-align: left; margin-top: 25px; }
         ul { padding-left: 20px; margin: 5px 0; }
         .term-btn { background-color: #ff4444; color: white; border: none; padding: 2px 6px; border-radius: 3px; cursor: pointer; font-size: 11px; margin-left: 5px; }
+        .action-btn { background-color: #00ffcc; color: black; border: none; padding: 2px 6px; border-radius: 3px; cursor: pointer; font-size: 11px; margin-left: 5px; font-weight: bold; }
+        .deny-btn { background-color: #ffaa00; color: black; border: none; padding: 2px 6px; border-radius: 3px; cursor: pointer; font-size: 11px; margin-left: 5px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -68,7 +70,6 @@
     <div class="container">
         <h1>🎰 Live Perya Color Game 🎰</h1>
 
-        <!-- Shared Auth Block -->
         <div class="login-box" id="auth-section">
             <input type="text" id="username" placeholder="Username">
             <input type="password" id="password" placeholder="Password">
@@ -76,13 +77,17 @@
             <p style="font-size:12px; color:#aaa; margin:8px 0 0 0;">Enter your player credentials, or use the Admin login.</p>
         </div>
 
-        <!-- Dynamic Admin Dashboard (Hidden by default, pops up only for admin) -->
         <div class="admin-panel" id="admin-dashboard">
             <h2>🛠️ Admin Command Center</h2>
             
             <div class="admin-section">
                 <strong>Dice Control:</strong><br><br>
                 <button onclick="triggerRoll()" style="background-color: #ffcc00; color: black; width: 100%; padding: 10px; font-size: 16px;">🎲 PULL THE ROPE (ROLL DICE) 🎲</button>
+            </div>
+
+            <div class="admin-section">
+                <strong>Live Request Approvals:</strong>
+                <div id="admin-requests-log" style="font-size:12px; color:#ffcc00; margin-top:5px;">No active game requests.</div>
             </div>
 
             <div class="admin-section">
@@ -114,7 +119,6 @@
             </div>
         </div>
 
-        <!-- Game/Wallet Stats Display -->
         <div class="stats-grid" id="player-stats-row">
             <div>Wallet Balance: <span class="highlight" id="balance-display">0</span> Coins</div>
             <div style="font-size:13px; color:#aaa; margin-top:4px;">
@@ -122,18 +126,24 @@
                 🏆 Earned: <span id="total-earned-display">0</span> | 
                 🏦 Withdrawn: <span id="total-withdrawn-display">0</span>
             </div>
-            <div style="margin-top: 10px;">
-                Bet Value: 
-                <select id="bet-amount">
-                    <option value="10">10 Coins</option>
-                    <option value="50">50 Coins</option>
-                    <option value="100">100 Coins</option>
-                    <option value="500">500 Coins</option>
-                </select>
+            <div style="margin-top: 10px; display: flex; justify-content: center; align-items: center; gap: 10px;">
+                <div>
+                    Bet Value: 
+                    <select id="bet-amount">
+                        <option value="10">10 Coins</option>
+                        <option value="50">50 Coins</option>
+                        <option value="100">100 Coins</option>
+                        <option value="500">500 Coins</option>
+                    </select>
+                </div>
+                <input type="number" id="withdraw-amount" placeholder="Amount" style="width:70px; padding:6px; border-radius:4px; border:none; display:inline-block;">
+                <button onclick="requestWithdraw()" style="padding: 6px 12px; background-color: #ffaa00; font-size:12px;">Request Cashout</button>
+            </div>
+            <div style="margin-top:10px;">
+                <button onclick="requestRoll()" style="background-color: #00ffcc; color: black; padding: 6px 12px; font-size:12px; font-weight:bold;">Ask Admin to Roll 🎲</button>
             </div>
         </div>
 
-        <!-- Dice View -->
         <h3>🎲 Live Game Dice 🎲</h3>
         <div class="dice-container">
             <div class="die" id="die0"></div>
@@ -141,13 +151,11 @@
             <div class="die" id="die2"></div>
         </div>
 
-        <!-- Voucher Code Input -->
         <div class="voucher-box" id="voucher-row">
             Got a code? <input type="text" id="voucher-code" placeholder="XXXX-XXXX" style="width:120px; text-transform: uppercase;">
             <button onclick="redeemCode()">Redeem</button>
         </div>
 
-        <!-- Interactive Bet Buttons -->
         <h3>Place Your Bets Below:</h3>
         <div class="bet-grid">
             <button class="bet-btn btn-red" onclick="placeBet('red')">RED <span id="bet-red">0</span></button>
@@ -160,7 +168,6 @@
 
         <button class="clear-btn" id="clear-row" onclick="clearBets()">↩️ Clear My Bets</button>
 
-        <!-- Live Activity Window -->
         <div class="log-box" id="activity-log">
             Live Activity Log:<br>
         </div>
@@ -190,25 +197,25 @@
         });
 
         socket.on('user_status', (data) => {
-            if(data.username === myUsername) {
+            if(data.username.toLowerCase() === 'admin' || data.is_admin) {
+                myUsername = data.username;
                 document.getElementById('auth-section').style.display = 'none';
-                isAdminAccount = data.is_admin || false;
+                isAdminAccount = true;
 
-                if (isAdminAccount) {
-                    // Turn layout into the Admin controller seamlessly
-                    document.getElementById('admin-dashboard').style.display = 'block';
-                    document.getElementById('player-stats-row').style.display = 'none';
-                    document.getElementById('voucher-row').style.display = 'none';
-                    document.getElementById('clear-row').style.display = 'none';
-                    logMessage("👑 Admin panel initialized successfully.");
-                } else {
-                    // Normal player layout view
-                    document.getElementById('balance-display').innerText = data.coins;
-                    document.getElementById('total-coins-display').innerText = data.coins;
-                    if(data.total_earned !== undefined) document.getElementById('total-earned-display').innerText = data.total_earned;
-                    if(data.total_withdrawn !== undefined) document.getElementById('total-withdrawn-display').innerText = data.total_withdrawn;
-                    logMessage("Logged in successfully as " + data.username);
-                }
+                document.getElementById('admin-dashboard').style.display = 'block';
+                document.getElementById('player-stats-row').style.display = 'none';
+                document.getElementById('voucher-row').style.display = 'none';
+                document.getElementById('clear-row').style.display = 'none';
+                logMessage("👑 Admin panel initialized successfully.");
+            } else if(data.username === myUsername) {
+                document.getElementById('auth-section').style.display = 'none';
+                isAdminAccount = false;
+
+                document.getElementById('balance-display').innerText = data.coins;
+                document.getElementById('total-coins-display').innerText = data.coins;
+                if(data.total_earned !== undefined) document.getElementById('total-earned-display').innerText = data.total_earned;
+                if(data.total_withdrawn !== undefined) document.getElementById('total-withdrawn-display').innerText = data.total_withdrawn;
+                logMessage("Logged in successfully as " + data.username);
             }
         });
 
@@ -236,6 +243,33 @@
                 socket.emit('terminate_player', { username: target });
             }
         }
+        
+        socket.on('roll_request', (data) => {
+            if(!isAdminAccount) return;
+            const block = document.getElementById('admin-requests-log');
+            if(block.innerText.includes("No active game requests")) block.innerHTML = "";
+            block.innerHTML += `<div id="req-roll-${data.username}">🎲 <b>${data.username}</b> requested a roll! <button class="action-btn" onclick="approveRoll('${data.username}')">Approve</button> <button class="deny-btn" onclick="denyRoll('${data.username}')">Deny</button></div>`;
+        });
+
+        socket.on('withdraw_request', (data) => {
+            if(!isAdminAccount) return;
+            const block = document.getElementById('admin-requests-log');
+            if(block.innerText.includes("No active game requests")) block.innerHTML = "";
+            block.innerHTML += `<div id="req-with-${data.username}">💰 <b>${data.username}</b> wants to cash out <b>${data.amount}</b> coins! <button class="action-btn" onclick="approveWithdraw('${data.username}')">Approve</button> <button class="deny-btn" onclick="denyWithdraw('${data.username}')">Deny</button></div>`;
+        });
+
+        function approveRoll(user) { socket.emit('approve_roll', { username: user }); document.getElementById(`req-roll-${user}`)?.remove(); checkEmptyRequests(); }
+        function denyRoll(user) { socket.emit('deny_roll', { username: user }); document.getElementById(`req-roll-${user}`)?.remove(); checkEmptyRequests(); }
+        function approveWithdraw(user) { socket.emit('approve_withdraw', { username: user }); document.getElementById(`req-with-${user}`)?.remove(); checkEmptyRequests(); }
+        function denyWithdraw(user) { socket.emit('deny_withdraw', { username: user }); document.getElementById(`req-with-${user}`)?.remove(); checkEmptyRequests(); }
+        
+        function checkEmptyRequests() {
+            const block = document.getElementById('admin-requests-log');
+            if(!block.children.length || block.innerHTML.trim() === "") {
+                block.innerText = "No active game requests.";
+            }
+        }
+
         socket.on('user_list', (data) => {
             if(!isAdminAccount) return;
             document.getElementById('admin-total-circ').innerText = data.total_coins;
@@ -249,7 +283,34 @@
             document.getElementById('admin-user-list').innerHTML = html;
         });
 
+        socket.on('admin_error', (data) => {
+            logMessage(`⚠️ System: ${data.message}`);
+        });
+
         /* --- Player Gameplay Operations --- */
+        function requestRoll() {
+            if(!myUsername || isAdminAccount) return;
+            socket.emit('request_roll', { username: myUsername });
+        }
+        function requestWithdraw() {
+            if(!myUsername || isAdminAccount) return;
+            const amt = parseInt(document.getElementById('withdraw-amount').value);
+            if(!amt || amt <= 0) return alert("Enter a valid layout value to cashout.");
+            socket.emit('request_withdraw', { username: myUsername, amount: amt });
+        }
+        socket.on('roll_request_sent', (data) => { logMessage(data.message); });
+        socket.on('roll_denied', (data) => { alert(data.message); logMessage(`❌ ${data.message}`); });
+        socket.on('withdraw_status', (data) => {
+            logMessage(data.message);
+            if(data.coins !== undefined) {
+                document.getElementById('balance-display').innerText = data.coins;
+                document.getElementById('total-coins-display').innerText = data.coins;
+            }
+            if(data.total_withdrawn !== undefined) {
+                document.getElementById('total-withdrawn-display').innerText = data.total_withdrawn;
+            }
+        });
+
         function placeBet(color) {
             if(!myUsername) return alert("Please log in first!");
             if(isAdminAccount) return alert("Admins are monitoring and cannot place bets.");
