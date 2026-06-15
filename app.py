@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 import os
 import random
 import string
@@ -752,7 +752,7 @@ if __name__ == '__main__':
     # Local development entry point. In production the host runs gunicorn
     # against the `app` object instead (see Procfile).
     socketio.run(app, debug=True)
-=======
+
 import os
 import random
 import string
@@ -1482,4 +1482,4 @@ if __name__ == '__main__':
     # Local development entry point. In production the host runs gunicorn
     # against the `app` object instead (see Procfile).
     socketio.run(app, debug=True)
->>>>>>> 4715eeaa00148c97d238287ff2b12284614f4fa6
+
