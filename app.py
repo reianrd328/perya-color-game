@@ -2,6 +2,23 @@
 import os
 import mysql.connector
 
+# 1. Call your loader first (if you have a local .env file)
+def _load_dotenv(path=".env"):
+    """Load KEY=VALUE lines from a local .env file into the environment"""
+    try:
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, val = line.partition("=")
+                os.environ.setdefault(key.strip(), val.strip())
+    except FileNotFoundError:
+        pass
+
+_load_dotenv()  # Run the function to load the variables into os.environ
+
+# 2. NOW connect to the database using those loaded variables
 db = mysql.connector.connect(
     host=os.environ.get("DB_HOST", "localhost"),
     user=os.environ.get("DB_USER", "root"),
@@ -9,7 +26,6 @@ db = mysql.connector.connect(
     database=os.environ.get("DB_NAME", "color_game"),
     port=int(os.environ.get("DB_PORT", 3306))
 )
-
 
 def _load_dotenv(path=".env"):
     """Load KEY=VALUE lines from a local .env file into the environment so
