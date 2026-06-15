@@ -57,9 +57,27 @@ def init_db():
         )
     """)
 
-    # Add new columns to the existing users table only if they're missing
+    # Create the users table if it doesn't exist yet (fresh databases, e.g.
+    # a new cloud host, won't have it). On an existing install this is a no-op
+    # and the ALTERs below backfill any missing columns.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            username VARCHAR(50) UNIQUE NOT NULL,
+            coins INT NOT NULL DEFAULT 0,
+            password VARCHAR(50) DEFAULT NULL,
+            active TINYINT(1) NOT NULL DEFAULT 1,
+            is_admin TINYINT(1) NOT NULL DEFAULT 0,
+            total_earned INT NOT NULL DEFAULT 0,
+            total_withdrawn INT NOT NULL DEFAULT 0
+        )
+    """)
+
+    # Backfill any columns missing from a pre-existing users table.
     cursor.execute("SHOW COLUMNS FROM users")
     existing = {row[0] for row in cursor.fetchall()}
+    if 'coins' not in existing:
+        cursor.execute("ALTER TABLE users ADD COLUMN coins INT NOT NULL DEFAULT 0")
     if 'password' not in existing:
         cursor.execute("ALTER TABLE users ADD COLUMN password VARCHAR(50) DEFAULT NULL")
     if 'active' not in existing:
@@ -367,22 +385,28 @@ def handle_create_player(data):
     chars = string.ascii_uppercase + string.digits
     password = "".join(random.choice(chars) for _ in range(6))
 
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT username FROM users WHERE username = %s", (username,))
-    if cursor.fetchone():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT username FROM users WHERE username = %s", (username,))
+        if cursor.fetchone():
+            cursor.close()
+            conn.close()
+            emit('admin_error', {'message': f"Username '{username}' already exists."})
+            return
+
+        cursor.execute(
+            "INSERT INTO users (username, password, coins, active, is_admin) VALUES (%s, %s, %s, 1, %s)",
+            (username, password, coins, 1 if make_admin else 0)
+        )
+        conn.commit()
         cursor.close()
         conn.close()
-        emit('admin_error', {'message': f"Username '{username}' already exists."})
+    except Exception as e:
+        # Surface the real DB error to the admin instead of failing silently.
+        print(f"create_player DB error: {e}")
+        emit('admin_error', {'message': f"Database error creating player: {e}"})
         return
-
-    cursor.execute(
-        "INSERT INTO users (username, password, coins, active, is_admin) VALUES (%s, %s, %s, 1, %s)",
-        (username, password, coins, 1 if make_admin else 0)
-    )
-    conn.commit()
-    cursor.close()
-    conn.close()
 
     emit('player_created', {
         'username': username,
@@ -715,6 +739,15 @@ def run_roll():
     finally:
         roll_in_progress = False
 
-if __name__ == '__main__':
+# Create the schema on startup. This runs under gunicorn too (where the
+# __main__ block below is skipped). Wrapped so an unreachable DB during a
+# build step doesn't crash the import.
+try:
     init_db()
+except Exception as e:
+    print(f"init_db skipped at startup: {e}")
+
+if __name__ == '__main__':
+    # Local development entry point. In production the host runs gunicorn
+    # against the `app` object instead (see Procfile).
     socketio.run(app, debug=True)
