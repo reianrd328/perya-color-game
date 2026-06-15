@@ -1,7 +1,9 @@
 
 
 import os
-import pymysql  # Swapped from mysql.connector
+import pymysql
+from flask import Flask, render_template, jsonify, request
+from flask_socketio import SocketIO, emit
 
 # Connect to Aiven MySQL using PyMySQL
 db = pymysql.connect(
@@ -10,8 +12,12 @@ db = pymysql.connect(
     password="AVNS_-suhnyilR-ApxD6Df54",
     database="defaultdb",
     port=27671,
-    cursorclass=pymysql.cursors.DictCursor  # This keeps your database results matching your current code structure
+    cursorclass=pymysql.cursors.DictCursor
 )
+
+# Crucial: Ensure this line exists right below your imports/db config!
+app = Flask(__name__)
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 # ... rest of your code down to line 47 where app = Flask(__name__) runs
 
