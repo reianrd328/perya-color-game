@@ -184,6 +184,7 @@ def handle_join(data):
         emit('login_failed', {'message': "Enter a username."})
         return
 
+    # HARDCHECK ADMIN FIRST - Bypasses the database entirely to ensure you can never get locked out
     if username == ADMIN_USERNAME:
         if password != ADMIN_PASSWORD:
             emit('login_failed', {'message': "Wrong admin password."})
@@ -195,6 +196,7 @@ def handle_join(data):
         broadcast_user_list()
         return
 
+    # Regular Player Check goes here
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
@@ -231,7 +233,6 @@ def handle_join(data):
     })
     broadcast_player_list()
     broadcast_user_list()
-
 @socketio.on('disconnect')
 def handle_disconnect():
     sid = request.sid
