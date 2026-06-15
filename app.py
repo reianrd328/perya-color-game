@@ -1,21 +1,16 @@
 
 
-import eventlet
-eventlet.monkey_patch()
-
 import os
-import mysql.connector
-# ... rest of your code
-from flask import Flask, render_template, jsonify, request
-from flask_socketio import SocketIO, emit
+import pymysql  # Swapped from mysql.connector
 
-# 1. Your database configuration is perfect here now:
-db = mysql.connector.connect(
+# Connect to Aiven MySQL using PyMySQL
+db = pymysql.connect(
     host="mysql-1dbccf57-dropfarm341-f09c.e.aivencloud.com",
     user="avnadmin",
     password="AVNS_-suhnyilR-ApxD6Df54",
     database="defaultdb",
-    port=27671
+    port=27671,
+    cursorclass=pymysql.cursors.DictCursor  # This keeps your database results matching your current code structure
 )
 
 # ... rest of your code down to line 47 where app = Flask(__name__) runs
