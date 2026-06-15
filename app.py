@@ -1,5 +1,8 @@
 
 
+from gevent import monkey
+monkey.patch_all()  # Crucial: This MUST be the absolute first thing in the file!
+
 import os
 import pymysql
 from flask import Flask, render_template, jsonify, request
@@ -9,15 +12,15 @@ from flask_socketio import SocketIO, emit
 db = pymysql.connect(
     host="mysql-1dbccf57-dropfarm341-f09c.e.aivencloud.com",
     user="avnadmin",
-    password="AVNS_-suhnyilR-ApxD6Df54",
+    password="YOUR_ACTUAL_AIVEN_PASSWORD_HERE",
     database="defaultdb",
     port=27671,
     cursorclass=pymysql.cursors.DictCursor
 )
 
-# Crucial: Ensure this line exists right below your imports/db config!
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
+# Crucial: Ensure this line exists right below your imports/db config!
 
 # ... rest of your code down to line 47 where app = Flask(__name__) runs
 
