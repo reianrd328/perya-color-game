@@ -1,7 +1,7 @@
 
 import os
 import mysql.connector
-from flask import Flask, render_with_template, jsonify, request  # <-- Make sure this is here!
+from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, emit
 
 # 1. Your database configuration is perfect here now:
