@@ -13,7 +13,7 @@ from flask_socketio import SocketIO, emit
 db = pymysql.connect(
     host="mysql-1dbccf57-dropfarm341-f09c.e.aivencloud.com",
     user="avnadmin",
-    password="YOUR_REAL_AIVEN_PASSWORD",  # Put your real password string here
+    password="AVNS_-suhnyilR-ApxD6Df54",  # Put your real password string here
     database="defaultdb",
     port=27671,
     cursorclass=pymysql.cursors.DictCursor,
