@@ -1,6 +1,11 @@
 
+
+import eventlet
+eventlet.monkey_patch()
+
 import os
 import mysql.connector
+# ... rest of your code
 from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, emit
 
