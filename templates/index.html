@@ -22,97 +22,34 @@
             border-radius: 12px;
             box-shadow: 0 8px 24px rgba(0,0,0,0.5);
         }
-        h1 {
-            margin-top: 0;
-            font-size: 28px;
-            letter-spacing: 1px;
-        }
-        .login-box {
-            background-color: #333333;
+        h1 { margin-top: 0; font-size: 28px; letter-spacing: 1px; }
+        .login-box { background-color: #333333; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        input[type="text"], input[type="password"], select { padding: 8px 12px; margin: 5px; border: none; border-radius: 4px; font-size: 14px; }
+        button { padding: 8px 16px; background-color: #ffffff; color: #000000; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        button:hover { background-color: #e0e0e0; }
+        
+        /* Admin Panel Styling */
+        .admin-panel {
+            background-color: #3d2626;
+            border: 2px solid #ff4444;
             padding: 15px;
             border-radius: 8px;
             margin-bottom: 20px;
+            text-align: left;
+            display: none;
         }
-        input[type="text"], input[type="password"], select {
-            padding: 8px 12px;
-            margin: 5px;
-            border: none;
-            border-radius: 4px;
-            font-size: 14px;
-        }
-        button {
-            padding: 8px 16px;
-            background-color: #ffffff;
-            color: #000000;
-            border: none;
-            border-radius: 4px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        button:hover {
-            background-color: #e0e0e0;
-        }
-        .stats-grid {
-            margin: 15px 0;
-            font-size: 15px;
-            line-height: 1.6;
-        }
-        .highlight {
-            color: #00ffcc;
-            font-weight: bold;
-        }
-        .dice-container {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin: 20px 0;
-        }
-        .die {
-            width: 60px;
-            height: 60px;
-            background-color: #555;
-            border-radius: 8px;
-            border: 2px solid #777;
-            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
-            transition: background-color 0.3s;
-        }
-        .voucher-box {
-            background-color: #333333;
-            padding: 12px;
-            border-radius: 8px;
-            margin: 20px 0;
-            font-size: 14px;
-        }
-        .bet-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-            margin: 20px 0;
-        }
-        .bet-btn {
-            padding: 20px 10px;
-            border-radius: 8px;
-            border: none;
-            font-weight: bold;
-            font-size: 16px;
-            cursor: pointer;
-            color: #fff;
-            text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 80px;
-        }
-        .bet-btn span {
-            font-size: 13px;
-            margin-top: 5px;
-            background: rgba(0,0,0,0.4);
-            padding: 2px 8px;
-            border-radius: 10px;
-        }
+        .admin-panel h2 { margin-top: 0; color: #ff6666; font-size: 20px; text-align: center; }
+        .admin-section { margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px dashed #553333; }
+        
+        .stats-grid { margin: 15px 0; font-size: 15px; line-height: 1.6; }
+        .highlight { color: #00ffcc; font-weight: bold; }
+        .dice-container { display: flex; justify-content: center; gap: 15px; margin: 20px 0; }
+        .die { width: 60px; height: 60px; background-color: #555; border-radius: 8px; border: 2px solid #777; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); transition: background-color 0.3s; }
+        .voucher-box { background-color: #333333; padding: 12px; border-radius: 8px; margin: 20px 0; font-size: 14px; }
+        
+        .bet-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 20px 0; }
+        .bet-btn { padding: 20px 10px; border-radius: 8px; border: none; font-weight: bold; font-size: 16px; cursor: pointer; color: #fff; text-shadow: 1px 1px 3px rgba(0,0,0,0.8); display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80px; }
+        .bet-btn span { font-size: 13px; margin-top: 5px; background: rgba(0,0,0,0.4); padding: 2px 8px; border-radius: 10px; }
         .btn-red { background-color: #ff0000; }
         .btn-blue { background-color: #0000ff; }
         .btn-green { background-color: #008000; }
@@ -120,27 +57,10 @@
         .btn-white { background-color: #ffffff; color: #000; text-shadow: none; }
         .btn-pink { background-color: #ffc0cb; color: #000; text-shadow: none; }
         
-        .clear-btn {
-            background-color: #444;
-            color: #fff;
-            padding: 10px 20px;
-            border-radius: 6px;
-            font-size: 14px;
-            margin-top: 10px;
-        }
-        .clear-btn:hover { background-color: #555; }
-        
-        .log-box {
-            background-color: #111;
-            padding: 10px;
-            border-radius: 6px;
-            height: 60px;
-            overflow-y: auto;
-            font-size: 13px;
-            color: #aaa;
-            text-align: left;
-            margin-top: 25px;
-        }
+        .clear-btn { background-color: #444; color: #fff; padding: 10px 20px; border-radius: 6px; font-size: 14px; margin-top: 10px; }
+        .log-box { background-color: #111; padding: 10px; border-radius: 6px; height: 80px; overflow-y: auto; font-size: 13px; color: #aaa; text-align: left; margin-top: 25px; }
+        ul { padding-left: 20px; margin: 5px 0; }
+        .term-btn { background-color: #ff4444; color: white; border: none; padding: 2px 6px; border-radius: 3px; cursor: pointer; font-size: 11px; margin-left: 5px; }
     </style>
 </head>
 <body>
@@ -148,21 +68,59 @@
     <div class="container">
         <h1>🎰 Live Perya Color Game 🎰</h1>
 
-        <!-- Auth Block -->
+        <!-- Shared Auth Block -->
         <div class="login-box" id="auth-section">
             <input type="text" id="username" placeholder="Username">
             <input type="password" id="password" placeholder="Password">
             <button onclick="login()">Login to Live Table</button>
-            <p style="font-size:12px; color:#aaa; margin:8px 0 0 0;">Players: use the username & password your admin gave you.</p>
+            <p style="font-size:12px; color:#aaa; margin:8px 0 0 0;">Enter your player credentials, or use the Admin login.</p>
         </div>
 
-        <!-- Wallet Stats Display -->
-        <div class="stats-grid">
+        <!-- Dynamic Admin Dashboard (Hidden by default, pops up only for admin) -->
+        <div class="admin-panel" id="admin-dashboard">
+            <h2>🛠️ Admin Command Center</h2>
+            
+            <div class="admin-section">
+                <strong>Dice Control:</strong><br><br>
+                <button onclick="triggerRoll()" style="background-color: #ffcc00; color: black; width: 100%; padding: 10px; font-size: 16px;">🎲 PULL THE ROPE (ROLL DICE) 🎲</button>
+            </div>
+
+            <div class="admin-section">
+                <strong>Create Player Login:</strong><br>
+                <input type="text" id="new-player-user" placeholder="Username" style="width:130px;">
+                <input type="number" id="new-player-coins" value="1000" style="width:70px; padding:8px; border-radius:4px; border:none;">
+                <button onclick="createPlayer()">Create</button>
+                <div id="creation-result" style="margin-top:5px; color:#00ffcc; font-size:13px;"></div>
+            </div>
+
+            <div class="admin-section">
+                <strong>Generate Coin Voucher:</strong><br>
+                <select id="voucher-amount">
+                    <option value="100">100 Coins</option>
+                    <option value="500">500 Coins</option>
+                    <option value="1000">1000 Coins</option>
+                </select>
+                <button onclick="generateCode()">Generate Code</button>
+                <div id="generated-code-display" style="margin-top:5px; color:#ffff00; font-weight:bold;"></div>
+            </div>
+
+            <div class="admin-section">
+                <strong>Live Management Updates:</strong>
+                <p style="margin:5px 0; font-size:13px;">Total coins in circulation: <span id="admin-total-circ" class="highlight">0</span></p>
+                <div style="font-size:12px; color:#ccc;">
+                    <strong>Connected Users:</strong>
+                    <div id="admin-user-list">None connected</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game/Wallet Stats Display -->
+        <div class="stats-grid" id="player-stats-row">
             <div>Wallet Balance: <span class="highlight" id="balance-display">0</span> Coins</div>
             <div style="font-size:13px; color:#aaa; margin-top:4px;">
-                💰 Total Coins: <span id="total-coins-display">0</span> <span style="font-size:11px;">(wallet + stakes on the table)</span><br>
-                🏆 Total Coins Earned: <span id="total-earned-display">0</span> <span style="font-size:11px;">(lifetime winnings)</span><br>
-                🏦 Total Withdrawn: <span id="total-withdrawn-display">0</span> <span style="font-size:11px;">(lifetime cash-outs)</span>
+                💰 Total Coins: <span id="total-coins-display">0</span> <span style="font-size:11px;">(wallet + stakes)</span> | 
+                🏆 Earned: <span id="total-earned-display">0</span> | 
+                🏦 Withdrawn: <span id="total-withdrawn-display">0</span>
             </div>
             <div style="margin-top: 10px;">
                 Bet Value: 
@@ -171,7 +129,6 @@
                     <option value="50">50 Coins</option>
                     <option value="100">100 Coins</option>
                     <option value="500">500 Coins</option>
-                    <option value="1000">1000 Coins</option>
                 </select>
             </div>
         </div>
@@ -185,7 +142,7 @@
         </div>
 
         <!-- Voucher Code Input -->
-        <div class="voucher-box">
+        <div class="voucher-box" id="voucher-row">
             Got a code? <input type="text" id="voucher-code" placeholder="XXXX-XXXX" style="width:120px; text-transform: uppercase;">
             <button onclick="redeemCode()">Redeem</button>
         </div>
@@ -201,7 +158,7 @@
             <button class="bet-btn btn-pink" onclick="placeBet('pink')">PINK <span id="bet-pink">0</span></button>
         </div>
 
-        <button class="clear-btn" onclick="clearBets()">↩️ Clear My Bets</button>
+        <button class="clear-btn" id="clear-row" onclick="clearBets()">↩️ Clear My Bets</button>
 
         <!-- Live Activity Window -->
         <div class="log-box" id="activity-log">
@@ -212,6 +169,7 @@
     <script>
         const socket = io();
         let myUsername = "";
+        let isAdminAccount = false;
 
         function logMessage(msg) {
             const log = document.getElementById('activity-log');
@@ -234,16 +192,67 @@
         socket.on('user_status', (data) => {
             if(data.username === myUsername) {
                 document.getElementById('auth-section').style.display = 'none';
-                document.getElementById('balance-display').innerText = data.coins;
-                document.getElementById('total-coins-display').innerText = data.coins;
-                if(data.total_earned !== undefined) document.getElementById('total-earned-display').innerText = data.total_earned;
-                if(data.total_withdrawn !== undefined) document.getElementById('total-withdrawn-display').innerText = data.total_withdrawn;
-                logMessage("Logged in successfully as " + data.username);
+                isAdminAccount = data.is_admin || false;
+
+                if (isAdminAccount) {
+                    // Turn layout into the Admin controller seamlessly
+                    document.getElementById('admin-dashboard').style.display = 'block';
+                    document.getElementById('player-stats-row').style.display = 'none';
+                    document.getElementById('voucher-row').style.display = 'none';
+                    document.getElementById('clear-row').style.display = 'none';
+                    logMessage("👑 Admin panel initialized successfully.");
+                } else {
+                    // Normal player layout view
+                    document.getElementById('balance-display').innerText = data.coins;
+                    document.getElementById('total-coins-display').innerText = data.coins;
+                    if(data.total_earned !== undefined) document.getElementById('total-earned-display').innerText = data.total_earned;
+                    if(data.total_withdrawn !== undefined) document.getElementById('total-withdrawn-display').innerText = data.total_withdrawn;
+                    logMessage("Logged in successfully as " + data.username);
+                }
             }
         });
 
+        /* --- Admin Operations --- */
+        function triggerRoll() { socket.emit('trigger_roll'); }
+        function generateCode() {
+            const amt = document.getElementById('voucher-amount').value;
+            socket.emit('generate_code', { amount: amt });
+        }
+        socket.on('code_generated', (data) => {
+            document.getElementById('generated-code-display').innerText = `Generated: ${data.code} (${data.amount} Coins)`;
+        });
+        function createPlayer() {
+            const user = document.getElementById('new-player-user').value.trim();
+            const coins = document.getElementById('new-player-coins').value;
+            if(!user) return;
+            socket.emit('create_player', { username: user, coins: coins });
+        }
+        socket.on('player_created', (data) => {
+            document.getElementById('creation-result').innerText = `Created User: ${data.username} | Temporary Pass: ${data.password}`;
+            document.getElementById('new-player-user').value = "";
+        });
+        function terminateUser(target) {
+            if(confirm(`Are you sure you want to terminate ${target}?`)) {
+                socket.emit('terminate_player', { username: target });
+            }
+        }
+        socket.on('user_list', (data) => {
+            if(!isAdminAccount) return;
+            document.getElementById('admin-total-circ').innerText = data.total_coins;
+            let html = "<ul>";
+            data.users.forEach(u => {
+                if(u.username !== "admin") {
+                    html += `<li><b>${u.username}</b> - Bal: ${u.coins} | Pass: <code>${u.password}</code> [${u.online ? '🟢 Online' : '🔴 Offline'}] <button class="term-btn" onclick="terminateUser('${u.username}')">Terminate</button></li>`;
+                }
+            });
+            html += "</ul>";
+            document.getElementById('admin-user-list').innerHTML = html;
+        });
+
+        /* --- Player Gameplay Operations --- */
         function placeBet(color) {
             if(!myUsername) return alert("Please log in first!");
+            if(isAdminAccount) return alert("Admins are monitoring and cannot place bets.");
             const amt = parseInt(document.getElementById('bet-amount').value);
             socket.emit('place_bet', { username: myUsername, color: color, amount: amt });
         }
@@ -252,8 +261,6 @@
             if(data.username === myUsername) {
                 document.getElementById('bet-' + data.color).innerText = data.color_total;
                 document.getElementById('balance-display').innerText = data.coins;
-                
-                // Recalculate total visual assets
                 let staked = 0;
                 ['red','blue','green','yellow','white','pink'].forEach(c => {
                     staked += parseInt(document.getElementById('bet-' + c).innerText) || 0;
@@ -262,12 +269,10 @@
             }
         });
 
-        socket.on('bet_rejected', (data) => {
-            alert(data.message);
-        });
+        socket.on('bet_rejected', (data) => { alert(data.message); });
 
         function clearBets() {
-            if(!myUsername) return;
+            if(!myUsername || isAdminAccount) return;
             socket.emit('clear_bets', { username: myUsername });
         }
 
@@ -290,17 +295,13 @@
 
         socket.on('redeem_result', (data) => {
             alert(data.message);
-            if(data.success) {
-                document.getElementById('voucher-code').value = "";
-            }
+            if(data.success) document.getElementById('voucher-code').value = "";
         });
 
-        socket.on('table_update', (data) => {
-            logMessage(data.message);
-        });
+        socket.on('table_update', (data) => { logMessage(data.message); });
 
         socket.on('dice_rolling', () => {
-            logMessage("🎲 The dealer is shaking the dice container...");
+            logMessage("🎲 Dice container shaking...");
             let count = 0;
             const colors = ['red','blue','green','yellow','white','pink'];
             const interval = setInterval(() => {
@@ -320,12 +321,10 @@
 
             logMessage(`✨ Result: ${dice[0].toUpperCase()} | ${dice[1].toUpperCase()} | ${dice[2].toUpperCase()}`);
 
-            // Reset board displays
             ['red','blue','green','yellow','white','pink'].forEach(c => {
                 document.getElementById('bet-' + c).innerText = "0";
             });
 
-            // Update user balance automatically if won
             if(myUsername && data.payouts && data.payouts[myUsername] !== undefined) {
                 logMessage(`🎉 You won/returned ${data.payouts[myUsername]} coins!`);
             }
