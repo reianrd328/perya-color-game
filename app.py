@@ -1,24 +1,10 @@
 
 import os
 import mysql.connector
+from flask import Flask, render_with_template, jsonify, request  # <-- Make sure this is here!
+from flask_socketio import SocketIO, emit
 
-# 1. Call your loader first (if you have a local .env file)
-def _load_dotenv(path=".env"):
-    """Load KEY=VALUE lines from a local .env file into the environment"""
-    try:
-        with open(path) as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, _, val = line.partition("=")
-                os.environ.setdefault(key.strip(), val.strip())
-    except FileNotFoundError:
-        pass
-
-_load_dotenv()  # Run the function to load the variables into os.environ
-
-# 2. NOW connect to the database using those loaded variables
+# 1. Your database configuration is perfect here now:
 db = mysql.connector.connect(
     host="mysql-1dbccf57-dropfarm341-f09c.e.aivencloud.com",
     user="avnadmin",
@@ -26,6 +12,8 @@ db = mysql.connector.connect(
     database="defaultdb",
     port=27671
 )
+
+# ... rest of your code down to line 47 where app = Flask(__name__) runs
 
 def _load_dotenv(path=".env"):
     """Load KEY=VALUE lines from a local .env file into the environment so
