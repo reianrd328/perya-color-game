@@ -20,11 +20,11 @@ _load_dotenv()  # Run the function to load the variables into os.environ
 
 # 2. NOW connect to the database using those loaded variables
 db = mysql.connector.connect(
-    host=os.environ.get("DB_HOST", "localhost"),
-    user=os.environ.get("DB_USER", "root"),
-    password=os.environ.get("DB_PASSWORD", ""),
-    database=os.environ.get("DB_NAME", "color_game"),
-    port=int(os.environ.get("DB_PORT", 3306))
+    host="mysql-1dbccf57-dropfarm341-f09c.e.aivencloud.com",
+    user="avnadmin",
+    password="AVNS_-suhnyilR-ApxD6Df54",
+    database="defaultdb",
+    port=27671
 )
 
 def _load_dotenv(path=".env"):
