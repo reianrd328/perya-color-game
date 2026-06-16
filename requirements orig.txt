@@ -1,4 +1,0 @@
-Flask
-Flask-SocketIO
-eventlet
-mysql-connector-python
