@@ -35,43 +35,58 @@ connected_admins = set()
 online_users = {}  # Structure: { session_id: username }
 
 def get_db_connection():
+    # Aiven requires a custom port (often different from 3306) and SSL encryption
     return mysql.connector.connect(
         host=os.environ.get("DB_HOST", "localhost"),
-        port=int(os.environ.get("DB_PORT", 3306)), # Add port routing dynamically
+        port=int(os.environ.get("DB_PORT", 3306)), 
         user=os.environ.get("DB_USER", "root"),
         password=os.environ.get("DB_PASSWORD", ""),
         database=os.environ.get("DB_NAME", "perya_color_game"),
+        ssl_ca=os.environ.get("DB_SSL_CA"), # Added for Aiven cloud protection
+        ssl_disabled=False
     )
 
 def init_db():
-    """Builds required schema blueprints safely at startup."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS codes (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            code VARCHAR(20) UNIQUE NOT NULL,
-            amount INT NOT NULL,
-            redeemed TINYINT(1) NOT NULL DEFAULT 0,
-            redeemed_by VARCHAR(50) DEFAULT NULL
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            username VARCHAR(50) PRIMARY KEY,
-            password VARCHAR(50) NOT NULL,
-            coins INT NOT NULL DEFAULT 0,
-            total_earned INT NOT NULL DEFAULT 0,
-            total_withdrawn INT NOT NULL DEFAULT 0,
-            is_admin TINYINT(1) NOT NULL DEFAULT 0,
-            active TINYINT(1) NOT NULL DEFAULT 1
-        )
-    """)
-    conn.commit()
-    cursor.close()
-    conn.close()
+    """Builds required schema blueprints safely at startup with connection error trapping."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS codes (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                code VARCHAR(20) UNIQUE NOT NULL,
+                amount INT NOT NULL,
+                redeemed TINYINT(1) NOT NULL DEFAULT 0,
+                redeemed_by VARCHAR(50) DEFAULT NULL
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                username VARCHAR(50) PRIMARY KEY,
+                password VARCHAR(50) NOT NULL,
+                coins INT NOT NULL DEFAULT 0,
+                total_earned INT NOT NULL DEFAULT 0,
+                total_withdrawn INT NOT NULL DEFAULT 0,
+                is_admin TINYINT(1) NOT NULL DEFAULT 0,
+                active TINYINT(1) NOT NULL DEFAULT 1
+            )
+        """)
+        conn.commit()
+        cursor.close()
+        conn.close()
+        print("✅ Database tables validated successfully.")
+    except Exception as e:
+        # Prevents crashing the web server process if the connection falls over during initialization
+        print(f"⚠️ Database initialization delayed or failed: {e}")
 
-init_db()
+# REMOVE the old global init_db() call line from your script!
+# Instead, run it safely inside a delayed context trigger block at the bottom of app.py:
+if __name__ == '__main__':
+    init_db()
+    socketio.run(app, debug=True)
+else:
+    # This runs when Gunicorn loads the application file on Render
+    init_db()
 
 def update_admin_panels():
     """Helper method compiling structural dashboard metrics for real-time streaming."""
