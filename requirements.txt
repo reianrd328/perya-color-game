@@ -1,6 +1,0 @@
-Flask==3.0.2
-flask-socketio==5.3.6
-gunicorn==21.2.0
-gevent==24.2.1
-gevent-websocket==0.10.1
-pymysql==1.2.0
