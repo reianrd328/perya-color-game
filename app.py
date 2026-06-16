@@ -23,7 +23,8 @@ _load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get("SECRET_KEY", "perya_secret_key_9921!")
-socketio = SocketIO(app, cors_allowed_origins="*")
+# Force Flask-SocketIO to use gevent asynchronously, stopping the eventlet conflict
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 COLORS = ["red", "blue", "green", "yellow", "white", "pink"]
 
