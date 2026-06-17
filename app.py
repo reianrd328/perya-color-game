@@ -1,25 +1,27 @@
 import os
 import random
 import string
+import uuid
 import pymysql
-import threading
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit, join_room
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get("SECRET_KEY", "perya_secret_core_9921!@")
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
+app.config['SECRET_KEY'] = "perya_super_secret_991223"
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 COLORS = ["red", "blue", "green", "yellow", "white", "pink"]
 
-# Global Master Overrides
-SUPERADMIN_USER = "superadmin"
-SUPERADMIN_PASS = "superpassword123"
+# Root Master Admin Credentials (Access to all 10 servers)
+GLOBAL_ADMIN_USER = "superadmin"
+GLOBAL_ADMIN_PASS = "superpassword123"
 
-# Multi-Tenant Memory Matrix
-active_bets = {}       # structure: { room_id: { username: { color: amount } } }
-online_sessions = {}   # structure: { sid: { username, room_id, is_admin } }
-pull_requests = {}     # structure: { room_id: [ usernames ] }
+# Memory Matrices (Multi-Server Tenants)
+table_bets = {}         # Structure: { room_id: { username: { color: amount } } }
+online_users = {}       # Structure: { sid: { username: str, room_id: str, is_admin: bool } }
+pull_requests = {}      # Structure: { room_id: [ usernames ] }
+pending_withdraws = {}  # Structure: { room_id: [ { id, username, amount } ] }
+vouchers = {}           # Structure: { room_id: { token_code: value_int } }
 
 def get_db_connection():
     try:
@@ -33,381 +35,419 @@ def get_db_connection():
             connect_timeout=5
         )
     except Exception as e:
-        print(f"❌ DB Wire Malfunction: {e}")
+        print(f"❌ Database Connectivity Failure: {e}")
         return None
 
 def init_db():
     conn = get_db_connection()
-    if not conn: return
+    if not conn:
+        return
     try:
-        with conn.cursor() as cursor:
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    username VARCHAR(255) NOT NULL UNIQUE,
-                    password VARCHAR(255) NOT NULL,
-                    coins INT DEFAULT 1000,
-                    room_id VARCHAR(50) DEFAULT 'Server_1',
-                    is_admin TINYINT DEFAULT 0
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                username VARCHAR(255) NOT NULL UNIQUE,
+                password VARCHAR(255) NOT NULL,
+                coins INT DEFAULT 1000,
+                is_admin TINYINT DEFAULT 0,
+                room_id VARCHAR(50) DEFAULT 'Server_1'
+            )
+        """)
+        conn.commit()
+
+        # Seed structural default sub-server admin profiles (1 to 10)
+        for i in range(1, 11):
+            s_name = f"admin" if i == 1 else f"admin{i}"
+            s_room = f"Server_{i}"
+            s_pass = f"adminpass{i}"
+            try:
+                cursor.execute(
+                    "INSERT INTO users (username, password, coins, is_admin, room_id) VALUES (%s, %s, 0, 1, %s)",
+                    (s_name, s_pass, s_room)
                 )
-            """)
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS vouchers (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    code VARCHAR(50) NOT NULL UNIQUE,
-                    amount INT NOT NULL,
-                    room_id VARCHAR(50) NOT NULL,
-                    is_redeemed TINYINT DEFAULT 0
-                )
-            """)
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS withdrawals (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    username VARCHAR(255) NOT NULL,
-                    amount INT NOT NULL,
-                    room_id VARCHAR(50) NOT NULL,
-                    status VARCHAR(20) DEFAULT 'PENDING'
-                )
-            """)
-            # Inject native admin accounts for 10 isolated sub-servers
-            for idx in range(1, 11):
-                r_name = f"Server_{idx}"
-                cursor.execute("SELECT id FROM users WHERE username = %s AND room_id = %s", ("admin", r_name))
-                if not cursor.fetchone():
-                    cursor.execute(
-                        "INSERT INTO users (username, password, coins, room_id, is_admin) VALUES (%s, %s, %s, %s, 1)",
-                        ("admin", f"adminpass{idx}", 0, r_name)
-                    )
-            conn.commit()
-            print("🚀 Data Schema Pipelines Initialized and Synced.")
+                conn.commit()
+            except Exception:
+                pass # Already seeded
     except Exception as e:
-        print(f"🚨 Schema failure: {e}")
+        print(f"Database setup notice: {e}")
     finally:
+        cursor.close()
         conn.close()
 
-def sync_admin_dashboard(room_id):
+def update_admin_panels(room_id):
     conn = get_db_connection()
     if not conn: return
     try:
-        with conn.cursor() as cursor:
-            cursor.execute("SELECT SUM(coins) as total FROM users WHERE room_id = %s AND is_admin = 0", (room_id,))
-            circ_res = cursor.fetchone()
-            total_coins = circ_res['total'] if circ_res['total'] else 0
+        cursor = conn.cursor()
+        cursor.execute("SELECT SUM(coins) as total FROM users WHERE room_id = %s AND is_admin = 0", (room_id,))
+        res = cursor.fetchone()
+        total_coins = int(res['total']) if res and res['total'] else 0
 
-            cursor.execute("SELECT username, password, coins FROM users WHERE room_id = %s AND is_admin = 0", (room_id,))
-            room_users = cursor.fetchall()
-
-            cursor.execute("SELECT id, username, amount FROM withdrawals WHERE room_id = %s AND status = 'PENDING'", (room_id,))
-            pending_w = cursor.fetchall()
-
+        cursor.execute("SELECT username, password, coins, is_admin FROM users WHERE room_id = %s", (room_id,))
+        users_list = cursor.fetchall()
+        
         socketio.emit('admin_dashboard_update', {
-            "total_coins": int(total_coins),
-            "users": room_users,
+            "total_coins": total_coins,
+            "users": users_list,
             "pull_requests": pull_requests.get(room_id, []),
-            "pending_withdraws": pending_w
+            "pending_withdraws": pending_withdraws.get(room_id, [])
         }, to=room_id)
     except Exception as e:
-        print(f"Sync issue: {e}")
+        print(f"Sync error: {e}")
     finally:
+        cursor.close()
         conn.close()
 
 @app.route('/')
-def index(): return render_template('index.html')
+def index():
+    return render_template('index.html')
 
 @socketio.on('join_game')
-def on_join(data):
+def handle_join_game(data):
     username = data.get('username', '').strip()
     password = data.get('password', '')
-    room_id = data.get('room_id', 'Server_1')
+    room_id = data.get('room_id', 'Server_1').strip()
 
-    if username == SUPERADMIN_USER and password == SUPERADMIN_PASS:
-        online_sessions[request.sid] = {"username": username, "room_id": room_id, "is_admin": True}
+    if not username or not password:
+        return emit('login_failed', {"message": "Empty values loaded."})
+
+    # Rule 1: Validate global master backdoor configuration overrides
+    if username == GLOBAL_ADMIN_USER and password == GLOBAL_ADMIN_PASS:
+        online_users[request.sid] = {"username": username, "room_id": room_id, "is_admin": True}
         join_room(room_id)
-        emit('user_status', {"username": username, "is_admin": True, "room_id": room_id})
-        sync_admin_dashboard(room_id)
+        emit('user_status', {"username": username, "is_admin": True, "room_id": room_id, "coins": 0})
+        update_admin_panels(room_id)
         return
 
     conn = get_db_connection()
-    if not conn: return emit('login_failed', {"message": "Database Engine Offline."})
+    if not conn: return emit('login_failed', {"message": "Database disconnected."})
     
     try:
-        with conn.cursor() as cursor:
-            cursor.execute("SELECT * FROM users WHERE username = %s AND password = %s", (username, password))
-            user = cursor.fetchone()
-            
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE username = %s AND password = %s", (username, password))
+        user = cursor.fetchone()
+        
         if not user:
-            return emit('login_failed', {"message": "Invalid credentials provided."})
+            return emit('login_failed', {"message": "Invalid username or password configuration."})
         
+        # Rule 2: Strict cross-room verification checks
         if user['is_admin'] == 0 and user['room_id'] != room_id:
-            return emit('login_failed', {"message": f"Access Denied: Enrolled in {user['room_id']}."})
-            
-        if user['is_admin'] == 1 and user['room_id'] != room_id:
-            return emit('login_failed', {"message": "Admin/Master credential mismatch for this sub-server."})
+            return emit('login_failed', {"message": f"Access Denied: Enrolled in {user['room_id'].replace('_',' ')} only."})
+        
+        # If a Sub-Server Admin logs in, tie them strictly to their assigned server room
+        if user['is_admin'] == 1:
+            room_id = user['room_id']
 
-        online_sessions[request.sid] = {"username": username, "room_id": room_id, "is_admin": bool(user['is_admin'])}
+        online_users[request.sid] = {"username": username, "room_id": room_id, "is_admin": bool(user['is_admin'])}
         join_room(room_id)
+
+        emit('user_status', {
+            "username": username, 
+            "is_admin": bool(user['is_admin']), 
+            "room_id": room_id, 
+            "coins": user['coins']
+        })
         
-        emit('user_status', {"username": username, "is_admin": bool(user['is_admin']), "room_id": room_id, "coins": user['coins']})
-        
-        if user['is_admin']:
-            sync_admin_dashboard(room_id)
-            emit('admin_log', {"msg": f"Master verified. Listening to channel: {room_id}"})
+        if user['is_admin'] == 1:
+            update_admin_panels(room_id)
         else:
-            if room_id not in active_bets: active_bets[room_id] = {}
-            if username not in active_bets[room_id]: active_bets[room_id][username] = {c: 0 for c in COLORS}
+            if room_id not in table_bets: table_bets[room_id] = {}
+            if username not in table_bets[room_id]: table_bets[room_id][username] = {c: 0 for c in COLORS}
+            update_admin_panels(room_id)
+
+    except Exception as e:
+        emit('login_failed', {"message": f"Internal Error: {e}"})
     finally:
         conn.close()
 
 @socketio.on('place_bets')
-def on_bet(data):
-    session = online_sessions.get(request.sid)
-    if not session or session['is_admin']: return
-    
-    room_id = session['room_id']
-    username = session['username']
-    client_bets = data.get('bets', {})
-    total_staked = sum(max(0, int(v)) for v in client_bets.values())
+def handle_bets(data):
+    user_meta = online_users.get(request.sid)
+    if not user_meta or user_meta['is_admin']: return
 
+    room_id = user_meta['room_id']
+    username = user_meta['username']
+    client_bets = data.get('bets', {})
+
+    total_stake = sum(max(0, int(v)) for v in client_bets.values())
+    
     conn = get_db_connection()
-    try:
-        with conn.cursor() as cursor:
-            cursor.execute("SELECT coins FROM users WHERE username = %s", (username,))
-            user = cursor.fetchone()
-            if not user or user['coins'] < total_staked:
-                return emit('system_message', {"msg": "❌ Transaction blocked: Insufficient Coin balance."})
-            
-            # Deduct immediately to lock stakes safely
-            cursor.execute("UPDATE users SET coins = coins - %s WHERE username = %s", (total_staked, username))
-            conn.commit()
-            
-            for color in COLORS:
-                active_bets[room_id][username][color] = max(0, int(client_bets.get(color, 0)))
-                
-        emit('system_message', {"msg": f"✅ Locked structural stake of {total_staked} coins.", "balance": user['coins'] - total_staked})
-        sync_admin_dashboard(room_id)
-    finally:
+    cursor = conn.cursor()
+    cursor.execute("SELECT coins FROM users WHERE username = %s", (username,))
+    user_db = cursor.fetchone()
+
+    if not user_db or user_db['coins'] < total_stake:
+        cursor.close()
         conn.close()
+        return emit('notification', {"message": "Insufficient coin balance."})
+
+    table_bets[room_id][username] = {c: max(0, int(client_bets.get(c, 0))) for c in COLORS}
+    cursor.close()
+    conn.close()
+    emit('player_log', {"msg": f"Locked structural bets total: {total_stake} coins."})
 
 @socketio.on('request_pull')
-def on_req_pull():
-    s = online_sessions.get(request.sid)
-    if not s or s['is_admin']: return
-    r, u = s['room_id'], s['username']
+def handle_req_pull():
+    user_meta = online_users.get(request.sid)
+    if not user_meta or user_meta['is_admin']: return
     
-    if r not in pull_requests: pull_requests[r] = []
-    if u not in pull_requests[r]: pull_requests[r].append(u)
-    
-    emit('pull_requested_status', {"message": "Rope-pull telemetry request transmitted. Awaiting Master sign-off."})
-    sync_admin_dashboard(r)
+    room_id = user_meta['room_id']
+    username = user_meta['username']
 
-@socketio.on('handle_pull_request')
-def handle_pull(data):
-    s = online_sessions.get(request.sid)
-    if not s or not s['is_admin']: return
-    r = s['room_id']
-    target = data.get('username')
-    
-    if r in pull_requests and target in pull_requests[r]:
-        pull_requests[r].remove(target)
-        if data.get('action') == 'approve':
-            for sid, sdata in online_sessions.items():
-                if sdata['username'] == target and sdata['room_id'] == r:
-                    socketio.emit('pull_permission_granted', {}, to=sid)
-                    break
-        sync_admin_dashboard(r)
+    if room_id not in pull_requests: pull_requests[room_id] = []
+    if username not in pull_requests[room_id]:
+        pull_requests[room_id].append(username)
+        
+    update_admin_panels(room_id)
+    emit('player_log', {"msg": "Rope pull permission pending admin authorization."})
 
-def execute_engine_spin(room_id):
-    """Executes the core business logic of the Perya Color Game roll."""
-    socketio.emit('dice_spin_start', {}, to=room_id)
-    import gevent
-    gevent.sleep(2) # Synchronous visual execution delay simulation
+@socketio.on('resolve_pull_request')
+def resolve_pull(data):
+    admin_meta = online_users.get(request.sid)
+    if not admin_meta or not admin_meta['is_admin']: return
 
-    results = [random.choice(COLORS) for _ in range(3)]
-    conn = get_db_connection()
-    try:
-        with conn.cursor() as cursor:
-            room_wagers = active_bets.get(room_id, {})
-            for player, wagers in list(room_wagers.items()):
-                payout = 0
-                total_bet = sum(wagers.values())
-                if total_bet == 0: continue
-                
-                for color, amount in wagers.items():
-                    if amount > 0:
-                        matches = results.count(color)
-                        if matches > 0:
-                            payout += amount + (amount * matches)
-                
-                cursor.execute("UPDATE users SET coins = coins + %s WHERE username = %s", (payout, player))
-                cursor.execute("SELECT coins FROM users WHERE username = %s", (player,))
-                curr_bal = cursor.fetchone()['coins']
-                
-                # Notify individual player channels
-                for psid, pdata in online_sessions.items():
-                    if pdata['username'] == player:
-                        socketio.emit('dice_spin_stop', {"results": results, "balance": curr_bal}, to=psid)
-                        socketio.emit('system_message', {"msg": f"Outcome: Obtained {payout} from game loop calculation.", "balance": curr_bal}, to=psid)
-
-                # Reset profile stakes memory array
-                active_bets[room_id][player] = {c: 0 for c in COLORS}
-        conn.commit()
-        socketio.emit('admin_log', {"msg": f"Engine execution sweep finished: {results}"}, to=room_id)
-        sync_admin_dashboard(room_id)
-    finally:
-        conn.close()
-
-@socketio.on('trigger_roll')
-def on_roll():
-    s = online_sessions.get(request.sid)
-    if not s or s['is_admin']: return
-    execute_engine_spin(s['room_id'])
-
-@socketio.on('admin_force_pull')
-def on_force_pull():
-    s = online_sessions.get(request.sid)
-    if not s or not s['is_admin']: return
-    execute_engine_spin(s['room_id'])
-
-@socketio.on('request_withdrawal')
-def on_withdraw(data):
-    s = online_sessions.get(request.sid)
-    if not s or s['is_admin']: return
-    amt = int(data.get('amount', 0))
-    if amt <= 0: return
-    
-    conn = get_db_connection()
-    try:
-        with conn.cursor() as cursor:
-            cursor.execute("SELECT coins FROM users WHERE username = %s", (s['username'],))
-            ubal = cursor.fetchone()['coins']
-            if ubal < amt:
-                return emit('system_message', {"msg": "❌ Withdrawal denied: Balance exceeded."})
-                
-            cursor.execute("UPDATE users SET coins = coins - %s WHERE username = %s", (amt, s['username']))
-            cursor.execute("INSERT INTO withdrawals (username, amount, room_id) VALUES (%s, %s, %s)", (s['username'], amt, s['room_id']))
-            conn.commit()
-            emit('system_message', {"msg": "⏳ Withdrawal request queued for validation.", "balance": ubal - amt})
-        sync_admin_dashboard(s['room_id'])
-    finally:
-        conn.close()
-
-@socketio.on('handle_withdrawal_request')
-def handle_w(data):
-    s = online_sessions.get(request.sid)
-    if not s or not s['is_admin']: return
-    w_id = data.get('id')
+    room_id = admin_meta['room_id']
+    target = data.get('target_user')
     action = data.get('action')
+
+    if room_id in pull_requests and target in pull_requests[room_id]:
+        pull_requests[room_id].remove(target)
+        if action == 'approve':
+            socketio.emit('log_update', {"msg": f"🟢 Pull request approved for user: {target}."}, to=room_id)
+            execute_dice_roll_sequence(room_id)
+        else:
+            socketio.emit('log_update', {"msg": f"❌ Pull request rejected for user: {target}."}, to=room_id)
+        update_admin_panels(room_id)
+
+@socketio.on('admin_pull_rope')
+def admin_pull_rope():
+    admin_meta = online_users.get(request.sid)
+    if not admin_meta or not admin_meta['is_admin']: return
+    execute_dice_roll_sequence(admin_meta['room_id'])
+
+def execute_dice_roll_sequence(room_id):
+    # Step 1: Broadcast asynchronous animation trigger signals down to the room channel
+    socketio.emit('dice_spin_start', {}, to=room_id)
+    
+    # Precise calculation delay loop block
+    socketio.sleep(3.0)
+
+    # Step 2: Roll the dice
+    res1, res2, res3 = random.choice(COLORS), random.choice(COLORS), random.choice(COLORS)
+    rolled_results = [res1, res2, res3]
     
     conn = get_db_connection()
-    try:
-        with conn.cursor() as cursor:
-            cursor.execute("SELECT * FROM withdrawals WHERE id = %s", (w_id,))
-            wreq = cursor.fetchone()
-            if not wreq: return
-            
-            if action == 'approve':
-                cursor.execute("UPDATE withdrawals SET status = 'APPROVED' WHERE id = %s", (w_id,))
-                msg = f"💸 Withdrawal profile transaction of {wreq['amount']} approved by room master."
+    cursor = conn.cursor()
+
+    socketio.emit('log_update', {"msg": f"🎲 Winning color metrics generated: {res1} | {res2} | {res3}."}, to=room_id)
+
+    # Step 3: Assess balances across active bet maps
+    room_bet_matrix = table_bets.get(room_id, {})
+    for player, bets in list(room_bet_matrix.items()):
+        total_bet = sum(bets.values())
+        if total_bet == 0: continue
+
+        cursor.execute("SELECT coins FROM users WHERE username = %s", (player,))
+        p_data = cursor.fetchone()
+        if not p_data: continue
+
+        current_balance = p_data['coins']
+        winnings = 0
+
+        for color, amount in bets.items():
+            if amount <= 0: continue
+            matches = rolled_results.count(color)
+            if matches > 0:
+                # Win: Keep base stake + get paid equivalent matching multiplier rates
+                winnings += amount + (amount * matches)
             else:
-                cursor.execute("UPDATE withdrawals SET status = 'DENIED' WHERE id = %s", (w_id,))
-                cursor.execute("UPDATE users SET coins = coins + %s WHERE username = %s", (wreq['amount'], wreq['username']))
-                msg = f"❌ Withdrawal of {wreq['amount']} rejected. Asset volume returned to pool."
-                
+                # Loss: Deduct staked capital pool from balance
+                winnings -= amount
+
+        new_balance = max(0, current_balance + winnings)
+        cursor.execute("UPDATE users SET coins = %s WHERE username = %s", (new_balance, player))
         conn.commit()
-        sync_admin_dashboard(s['room_id'])
-        # Broadcast context update directly to user endpoints
-        for psid, pdata in online_sessions.items():
-            if pdata['username'] == wreq['username']:
-                socketio.emit('system_message', {"msg": msg}, to=psid)
-    finally:
+
+        # Update specific player client frames directly
+        for sid, meta in online_users.items():
+            if meta['username'] == player:
+                socketio.emit('update_balance', {"coins": new_balance}, to=sid)
+                status_msg = f"Result: {'🎉 Win! +' if winnings >= 0 else '📉 Loss: '}{winnings} Coins."
+                socketio.emit('player_log', {"msg": status_msg}, to=sid)
+
+        # Clear bets after evaluation
+        table_bets[room_id][player] = {c: 0 for c in COLORS}
+
+    cursor.close()
+    conn.close()
+    
+    # Step 4: Disengage rolling frames on client threads
+    socketio.emit('dice_spin_stop', {"results": rolled_results}, to=room_id)
+    update_admin_panels(room_id)
+
+@socketio.on('request_withdraw')
+def handle_withdraw(data):
+    user_meta = online_users.get(request.sid)
+    if not user_meta or user_meta['is_admin']: return
+
+    room_id = user_meta['room_id']
+    username = user_meta['username']
+    amount = int(data.get('amount', 0))
+
+    if amount <= 0: return
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT coins FROM users WHERE username = %s", (username,))
+    ub = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    if not ub or ub['coins'] < amount:
+        return emit('notification', {"message": "Withdraw balance exceeds wallet limits."})
+
+    if room_id not in pending_withdraws: pending_withdraws[room_id] = []
+    pending_withdraws[room_id].append({"id": str(uuid.uuid4())[:8], "username": username, "amount": amount})
+    
+    update_admin_panels(room_id)
+    emit('player_log', {"msg": f"Cashout processing ticket registered for {amount} coins."})
+
+@socketio.on('resolve_withdraw_request')
+def resolve_withdraw(data):
+    admin_meta = online_users.get(request.sid)
+    if not admin_meta or not admin_meta['is_admin']: return
+
+    room_id = admin_meta['room_id']
+    tx_id = data.get('transfer_id')
+    action = data.get('action')
+
+    target_ticket = next((w for w in pending_withdraws.get(room_id, []) if w['id'] == tx_id), None)
+    if not target_ticket: return
+
+    pending_withdraws[room_id].remove(target_ticket)
+
+    if action == 'approve':
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT coins FROM users WHERE username = %s", (target_ticket['username'],))
+        ub = cursor.fetchone()
+        
+        if ub and ub['coins'] >= target_ticket['amount']:
+            new_bal = ub['coins'] - target_ticket['amount']
+            cursor.execute("UPDATE users SET coins = %s WHERE username = %s", (new_bal, target_ticket['username']))
+            conn.commit()
+            
+            socketio.emit('log_update', {"msg": f"✅ Cashout approved: {target_ticket['username']} ({target_ticket['amount']}c)."}, to=room_id)
+            
+            for sid, meta in online_users.items():
+                if meta['username'] == target_ticket['username']:
+                    socketio.emit('update_balance', {"coins": new_bal}, to=sid)
+                    socketio.emit('player_log', {"msg": f"Cashout transaction verified: -{target_ticket['amount']}c."}, to=sid)
+        cursor.close()
         conn.close()
+    else:
+         socketio.emit('log_update', {"msg": f"❌ Cashout denied for {target_ticket['username']}."}, to=room_id)
+    
+    update_admin_panels(room_id)
 
 @socketio.on('generate_voucher')
-def on_gen_vouch(data):
-    s = online_sessions.get(request.sid)
-    if not s or not s['is_admin']: return
-    amt = int(data.get('amount', 0))
-    code = "VCH-" + ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+def make_voucher(data):
+    admin_meta = online_users.get(request.sid)
+    if not admin_meta or not admin_meta['is_admin']: return
+
+    room_id = admin_meta['room_id']
+    amount = int(data.get('amount', 0))
+    if amount <= 0: return
+
+    token = "TOK-" + ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+    if room_id not in vouchers: vouchers[room_id] = {}
     
-    conn = get_db_connection()
-    try:
-        with conn.cursor() as cursor:
-            cursor.execute("INSERT INTO vouchers (code, amount, room_id) VALUES (%s, %s, %s)", (code, amt, s['room_id']))
+    vouchers[room_id][token] = amount
+    emit('voucher_generated', {"token": token, "amount": amount})
+
+@socketio.on('claim_voucher')
+def claim_voucher(data):
+    user_meta = online_users.get(request.sid)
+    if not user_meta or user_meta['is_admin']: return
+
+    room_id = user_meta['room_id']
+    username = user_meta['username']
+    token = data.get('token', '').strip()
+
+    if room_id in vouchers and token in vouchers[room_id]:
+        val = vouchers[room_id].pop(token)
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT coins FROM users WHERE username = %s", (username,))
+        ub = cursor.fetchone()
+        
+        new_bal = ub['coins'] + val
+        cursor.execute("UPDATE users SET coins = %s WHERE username = %s", (new_bal, username))
         conn.commit()
-        emit('voucher_created', {"code": code, "amount": amt})
-    finally:
+        cursor.close()
         conn.close()
 
-@socketio.on('redeem_voucher')
-def on_redeem(data):
-    s = online_sessions.get(request.sid)
-    if not s or s['is_admin']: return
-    code = data.get('code', '')
-    
-    conn = get_db_connection()
-    try:
-        with conn.cursor() as cursor:
-            cursor.execute("SELECT * FROM vouchers WHERE code = %s AND is_redeemed = 0", (code,))
-            v = cursor.fetchone()
-            if not v:
-                return emit('system_message', {"msg": "❌ Invalid token authentication or already claimed."})
-            if v['room_id'] != s['room_id']:
-                return emit('system_message', {"msg": "❌ Region Conflict: This voucher belongs to a different table segment."})
-                
-            cursor.execute("UPDATE vouchers SET is_redeemed = 1 WHERE id = %s", (v['id'],))
-            cursor.execute("UPDATE users SET coins = coins + %s WHERE username = %s", (v['amount'], s['username']))
-            cursor.execute("SELECT coins FROM users WHERE username = %s", (s['username'],))
-            ubal = cursor.fetchone()['coins']
-        conn.commit()
-        emit('system_message', {"msg": f"🎉 Voucher applied! Added {v['amount']} coins.", "balance": ubal})
-        sync_admin_dashboard(s['room_id'])
-    finally:
-        conn.close()
+        emit('update_balance', {"coins": new_bal})
+        emit('player_log', {"msg": f"🎟️ Claimed Voucher successfully (+{val} Coins)."})
+        update_admin_panels(room_id)
+    else:
+        emit('notification', {"message": "Invalid voucher or assigned to another room zone mapping."})
 
 @socketio.on('create_player')
-def on_create(data):
-    s = online_sessions.get(request.sid)
-    if not s or not s['is_admin']: return
-    uname = data.get('username', '').strip()
-    gen_pass = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
-    
-    if not uname: return
+def create_player(data):
+    admin_meta = online_users.get(request.sid)
+    if not admin_meta or not admin_meta['is_admin']: return
+
+    room_id = admin_meta['room_id']
+    username = data.get('username', '').strip()
+    generated_password = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+
+    if not username: return
+
     conn = get_db_connection()
+    cursor = conn.cursor()
     try:
-        with conn.cursor() as cursor:
-            cursor.execute("INSERT INTO users (username, password, room_id) VALUES (%s, %s, %s)", (uname, gen_pass, s['room_id']))
+        cursor.execute(
+            "INSERT INTO users (username, password, coins, is_admin, room_id) VALUES (%s, %s, 1000, 0, %s)",
+            (username, generated_password, room_id)
+        )
         conn.commit()
-        emit('admin_log', {"msg": f"Profile created: User '{uname}' password reference: '{gen_pass}'"})
-        sync_admin_dashboard(s['room_id'])
+        socketio.emit('log_update', {"msg": f"👤 Enrolled user profile: {username} | Password: {generated_password}"}, to=room_id)
+        update_admin_panels(room_id)
     except Exception:
-        emit('admin_log', {"msg": "❌ Creation failure. Username value could be duplicated inside system db."})
+        emit('notification', {"message": "Profile moniker already exists."})
     finally:
+        cursor.close()
         conn.close()
 
-@socketio.on('delete_player')
-def on_delete(data):
-    s = online_sessions.get(request.sid)
-    if not s or not s['is_admin']: return
-    target = data.get('username')
-    
+@socketio.on('delete_user_profile')
+def delete_user(data):
+    admin_meta = online_users.get(request.sid)
+    if not admin_meta or not admin_meta['is_admin']: return
+
+    room_id = admin_meta['room_id']
+    target = data.get('target_user')
+
     conn = get_db_connection()
-    try:
-        with conn.cursor() as cursor:
-            cursor.execute("DELETE FROM users WHERE username = %s AND room_id = %s", (target, s['room_id']))
-        conn.commit()
-        emit('admin_log', {"msg": f"Purged player profile context: {target}"})
-        sync_admin_dashboard(s['room_id'])
-    finally:
-        conn.close()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM users WHERE username = %s AND room_id = %s AND is_admin = 0", (target, room_id))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    socketio.emit('log_update', {"msg": f"🗑️ Purged user: {target} from this server."}, to=room_id)
+    update_admin_panels(room_id)
 
 @socketio.on('disconnect')
-def on_disconnect():
-    if request.sid in online_sessions:
-        r = online_sessions[request.sid]['room_id']
-        del online_sessions[request.sid]
-        sync_admin_dashboard(r)
+def handle_disconnect():
+    if request.sid in online_users:
+        room_id = online_users[request.sid]['room_id']
+        del online_users[request.sid]
+        update_admin_panels(room_id)
 
-threading.Thread(target=init_db, daemon=True).start()
+init_db()
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True)
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
