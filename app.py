@@ -49,23 +49,40 @@ def get_db_connection():
     )
 
 def init_db():
+    connection = get_db_connection()
+    if connection is None:
+        print("❌ Cannot initialize DB: Connection offline")
+        return
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        cursor = connection.cursor()
+        # Create users table if it doesn't exist
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
-                username VARCHAR(50) PRIMARY KEY,
-                password VARCHAR(50) NOT NULL,
-                coins INT NOT NULL DEFAULT 0,
-                total_earned INT NOT NULL DEFAULT 0,
-                total_withdrawn INT NOT NULL DEFAULT 0,
-                is_admin TINYINT(1) NOT NULL DEFAULT 0,
-                room_id VARCHAR(20) NOT NULL DEFAULT 'Server_1',
-                active TINYINT(1) NOT NULL DEFAULT 1
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                username VARCHAR(255) NOT NULL,
+                password VARCHAR(255) NOT NULL,
+                coins INT DEFAULT 1000,
+                is_admin TINYINT DEFAULT 0
             )
         """)
-        conn.commit()
+        
+        # AUTOMATICALLY ADD THE MISSING room_id COLUMN IF IT'S NOT THERE
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN room_id VARCHAR(50) DEFAULT 'Server_1'")
+            print("✅ Successfully injected missing 'room_id' column into users schema.")
+        except Exception as col_err:
+            # If the column already exists, MySQL throws an error we can safely pass
+            if "Duplicate column name" in str(col_err) or "1060" in str(col_err):
+                pass
+            else:
+                print(f"Schema update notice: {col_err}")
+
+        connection.commit()
+    except Exception as e:
+        print(f"❌ Database Initialization Error: {e}")
+    finally:
         cursor.close()
+        connection.close()
         conn.close()
         print("✅ Database multi-tenant environment validated.")
     except Exception as e:
