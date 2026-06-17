@@ -48,7 +48,7 @@ def get_db_connection():
         ssl_verify_cert=False
     )
 
-def init_db():
+ def init_db():
     connection = get_db_connection()
     if connection is None:
         print("❌ Cannot initialize DB: Connection offline")
