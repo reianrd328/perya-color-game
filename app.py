@@ -117,11 +117,28 @@ def index():
 def handle_join_game(data):
     username = data.get('username', '').strip()
     password = data.get('password', '')
-    room_id = data.get('room_id', 'main_server').strip() # Capture room target
+    room_id = data.get('room_id', 'main_server').strip()
 
     if not username or not password:
         return emit('login_failed', {"message": "Credentials missing."})
 
+    # FIX ADDED HERE: Catch the default admin BEFORE checking MySQL rows
+    if username == ADMIN_USERNAME:
+        if password == ADMIN_PASSWORD:
+            online_users[request.sid] = {"username": username, "room_id": room_id}
+            socketio.server.enter_room(request.sid, room_id)
+            
+            emit('user_status', {
+                "username": username, "coins": 0,
+                "is_admin": True, "room_id": room_id,
+                "total_earned": 0, "total_withdrawn": 0
+            })
+            update_admin_panels(room_id)
+            return
+        else:
+            return emit('login_failed', {"message": "Invalid Administrator Password."})
+
+    # Standard player verification follows below...
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
@@ -135,8 +152,6 @@ def handle_join_game(data):
     if not user or user['password'] != password or not user['active'] or user['room_id'] != room_id:
         return emit('login_failed', {"message": "Invalid access credentials or wrong server room assignment."})
 
-    # Bind socket connection to room tier
-    flask.request.environ = request.environ
     online_users[request.sid] = {"username": username, "room_id": room_id}
     socketio.server.enter_room(request.sid, room_id)
 
@@ -147,11 +162,10 @@ def handle_join_game(data):
 
     emit('user_status', {
         "username": username, "coins": user['coins'],
-        "is_admin": bool(user['is_admin']), "room_id": room_id,
+        "is_admin": False, "room_id": room_id,
         "total_earned": user['total_earned'], "total_withdrawn": user['total_withdrawn']
     })
     update_admin_panels(room_id)
-
 @socketio.on('request_pull')
 def handle_request_pull(data):
     sid_data = online_users.get(request.sid)
