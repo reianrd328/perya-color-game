@@ -380,8 +380,10 @@ def handle_create_player(data):
             "is_admin": bool(is_admin)
         }, broadcast=True)
         update_admin_panels()
-    except Exception:
-        emit('admin_error', {"message": "Username taken or database connection dropped."})
+    except Exception as db_error:
+        # This line will print the EXACT error message to your Render Logs tab!
+        print(f"🚨 CRITICAL DATABASE ERROR ON USER CREATION: {db_error}")
+        emit('admin_error', {"message": f"Database Error: {db_error}"})
 
 @socketio.on('generate_code')
 def handle_generate_code(data):
