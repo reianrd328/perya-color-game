@@ -27,11 +27,14 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 COLORS = ["red", "blue", "green", "yellow", "white", "pink"]
 
-# Multi-Tenant Structural Engines (Tracked per Room instead of globally)
-table_bets = {}         # Structure: { room_id: { username: { color: amount } } }
-online_users = {}       # Structure: { sid: { "username": username, "room_id": room_id } }
+ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
+
+# Multi-Tenant Structural Engines
+table_bets = {}         
+online_users = {}       
 pending_withdraws = []  
-pull_requests = {}      # Structure: { room_id: [username, ...] }
+pull_requests = {}      
 
 def get_db_connection():
     return mysql.connector.connect(
@@ -48,7 +51,6 @@ def init_db():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        # Updated to add room_id column to users for dealer grouping
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 username VARCHAR(50) PRIMARY KEY,
@@ -57,7 +59,7 @@ def init_db():
                 total_earned INT NOT NULL DEFAULT 0,
                 total_withdrawn INT NOT NULL DEFAULT 0,
                 is_admin TINYINT(1) NOT NULL DEFAULT 0,
-                room_id VARCHAR(20) NOT NULL DEFAULT 'main_server',
+                room_id VARCHAR(20) NOT NULL DEFAULT 'Server_1',
                 active TINYINT(1) NOT NULL DEFAULT 1
             )
         """)
@@ -69,12 +71,13 @@ def init_db():
         print(f"⚠️ Table verification bypass: {e}")
 
 def update_admin_panels(room_id):
-    """Compiles dashboard metrics strictly scoped to the admin's specific room."""
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         cursor.execute("SELECT SUM(coins) as total FROM users WHERE room_id = %s", (room_id,))
         res = cursor.fetchone()
+        
+        # Decimal fix fully integrated here
         total_circulation = int(res['total']) if res and res['total'] else 0
         
         cursor.execute("SELECT username, coins, total_earned, total_withdrawn, password, is_admin, active FROM users WHERE room_id = %s", (room_id,))
@@ -95,7 +98,7 @@ def update_admin_panels(room_id):
         name = online_users[sid]['username']
         user_data = next((x for x in system_users if x['username'] == name), None)
         if user_data and not user_data['is_admin']:
-            staked = sum(table_bets.get(room_id, {}).get(name, {}).values())
+            staked = sum(table_bets.get(room_id, {}).get(name, {}).values()) if room_id in table_bets and name in table_bets[room_id] else 0
             active_players.append({"username": name, "coins": user_data['coins'], "staked": staked, "total": user_data['coins'] + staked})
             if staked > 0:
                 pending_rolls.append({"username": name, "amount": staked})
@@ -117,12 +120,12 @@ def index():
 def handle_join_game(data):
     username = data.get('username', '').strip()
     password = data.get('password', '')
-    room_id = data.get('room_id', 'main_server').strip()
+    room_id = data.get('room_id', 'Server_1').strip() 
 
     if not username or not password:
         return emit('login_failed', {"message": "Credentials missing."})
 
-    # FIX ADDED HERE: Catch the default admin BEFORE checking MySQL rows
+    # Catch the default admin immediately
     if username == ADMIN_USERNAME:
         if password == ADMIN_PASSWORD:
             online_users[request.sid] = {"username": username, "room_id": room_id}
@@ -138,7 +141,6 @@ def handle_join_game(data):
         else:
             return emit('login_failed', {"message": "Invalid Administrator Password."})
 
-    # Standard player verification follows below...
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
@@ -166,6 +168,7 @@ def handle_join_game(data):
         "total_earned": user['total_earned'], "total_withdrawn": user['total_withdrawn']
     })
     update_admin_panels(room_id)
+
 @socketio.on('request_pull')
 def handle_request_pull(data):
     sid_data = online_users.get(request.sid)
@@ -175,7 +178,6 @@ def handle_request_pull(data):
 
     if room_id not in pull_requests:
         pull_requests[room_id] = []
-    
     if username not in pull_requests[room_id]:
         pull_requests[room_id].append(username)
     
@@ -191,8 +193,6 @@ def handle_grant_permission(data):
 
     if room_id in pull_requests and target_user in pull_requests[room_id]:
         pull_requests[room_id].remove(target_user)
-        
-        # Notify that specific player that they can now pull the rope!
         for sid, u_data in online_users.items():
             if u_data['username'] == target_user and u_data['room_id'] == room_id:
                 socketio.emit('pull_permission_granted', {}, to=sid)
@@ -229,6 +229,9 @@ def handle_place_bet(data):
         conn.close()
     except Exception: return
 
+    if room_id not in table_bets: table_bets[room_id] = {}
+    if username not in table_bets[room_id]: table_bets[room_id][username] = {c: 0 for c in COLORS}
+
     table_bets[room_id][username][color] += amount
     emit('bet_placed', {"username": username, "color": color, "color_total": table_bets[room_id][username][color], "coins": new_balance})
     update_admin_panels(room_id)
@@ -241,8 +244,6 @@ def handle_trigger_roll(data):
 
     socketio.emit('dice_rolling', {}, to=room_id)
     dice_results = [random.choice(COLORS) for _ in range(3)]
-    
-    # 3 Second animation sleep match buffer delay
     time.sleep(3)
 
     try:
@@ -274,7 +275,7 @@ def handle_trigger_roll(data):
     conn.commit()
     cursor.close()
     conn.close()
-    table_bets[room_id].clear()
+    if room_id in table_bets: table_bets[room_id].clear()
 
     socketio.emit('roll_results', {"dice": dice_results, "payouts": payout_ledger}, to=room_id)
     update_admin_panels(room_id)
@@ -287,7 +288,7 @@ def handle_create_player(data):
 
     username = data.get('username', '').strip()
     coins = int(data.get('coins', 1000))
-    is_admin = 1 if data.get('is_admin') else 0
+    is_admin = 0
     generated_password = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
 
     try:
@@ -304,7 +305,7 @@ def handle_create_player(data):
         emit('player_created', {"username": username, "password": generated_password, "coins": coins}, to=room_id)
         update_admin_panels(room_id)
     except Exception as e:
-        emit('admin_error', {"message": f"Execution constraint crash: {e}"})
+        emit('admin_error', {"message": f"Database write blocked: {e}"})
 
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -317,5 +318,4 @@ with app.app_context():
     threading.Thread(target=init_db, daemon=True).start()
 
 if __name__ == '__main__':
-    import flask
     socketio.run(app, debug=True)
