@@ -1,7 +1,5 @@
 Flask==3.0.2
-flask-socketio==5.3.6
-eventlet==0.35.2
+Flask-SocketIO==5.3.6
+gevent-websocket==0.10.1
 gunicorn==21.2.0
-mysql-connector-python==9.1.0
-gevent
-gevent-websocket
+pymysql==1.1.0
