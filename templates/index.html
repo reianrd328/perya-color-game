@@ -3,116 +3,114 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Multi-Server Perya Game</title>
+    <title>Live Multi-Server Perya Game Engine</title>
     <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js"></script>
     <style>
         :root {
-            --bg-color: #121212;
-            --panel-color: #1e1e1e;
-            --text-color: #ffffff;
-            --accent-color: #e1b12c;
-            --border-color: #333333;
+            --bg-body: #141414;
+            --bg-panel: #1e1e1e;
+            --text-main: #ffffff;
+            --border-panel: #2a2a2a;
+            --input-bg: #2d2d2d;
+            --input-text: #ffffff;
         }
-
         .light-theme {
-            --bg-color: #f5f6fa;
-            --panel-color: #ffffff;
-            --text-color: #2f3640;
-            --accent-color: #dcdde1;
-            --border-color: #dcdde1;
+            --bg-body: #f5f6fa;
+            --bg-panel: #ffffff;
+            --text-main: #2f3640;
+            --border-panel: #dcdde1;
+            --input-bg: #ffffff;
+            --input-text: #2f3640;
         }
-
         body { 
-            background-color: var(--bg-color); 
-            color: var(--text-color); 
+            background-color: var(--bg-body); 
+            color: var(--text-main); 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
             text-align: center; 
             padding: 20px;
             transition: background 0.3s, color 0.3s;
         }
-        
         .panel { 
-            background: var(--panel-color); 
-            max-width: 650px; 
+            background: var(--bg-panel); 
+            max-width: 750px; 
             margin: 20px auto; 
             padding: 25px; 
             border-radius: 12px; 
-            box-shadow: 0 8px 24px rgba(0,0,0,0.3); 
-            border: 1px solid var(--border-color);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+            border: 1px solid var(--border-panel);
         }
-
         select, input, button { 
             padding: 12px; 
             margin: 8px; 
             font-size: 15px; 
             border-radius: 6px; 
-            border: 1px solid var(--border-color); 
+            border: 1px solid #444; 
             width: 80%; 
             max-width: 320px; 
             box-sizing: border-box; 
+            background: var(--input-bg);
+            color: var(--input-text);
         }
-
-        input, select {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-        }
-        
-        button { background: #e1b12c; color: #000; font-weight: bold; cursor: pointer; transition: 0.2s; border: none; }
-        button:hover { background: #fbc531; transform: translateY(-1px); }
-        button:disabled { opacity: 0.5; cursor: not-allowed; }
-        
-        .theme-toggle { position: absolute; top: 20px; right: 20px; width: auto; padding: 8px 15px; font-size: 13px; }
-        .logout-btn { background: #e74c3c; color: white; margin-top: 15px; }
-        .logout-btn:hover { background: #c0392b; }
-
-        /* 3D Dice Structural Layout Styling Rules */
-        .dice-container { display: flex; justify-content: center; gap: 40px; margin: 30px auto; height: 120px; perspective: 400px; }
-        .cube { width: 80px; height: 80px; position: relative; transform-style: preserve-3d; transition: transform 0.5s ease; }
-        .face { position: absolute; width: 80px; height: 80px; border: 2px solid #000; border-radius: 12px; opacity: 0.95; }
-        
-        /* Coordinate Map System alignment rules mapping color properties */
-        .red    { background: #ff2a2a; transform: rotateY(0deg) translateZ(40px); }
-        .blue   { background: #2a75ff; transform: rotateY(90deg) translateZ(40px); }
-        .green  { background: #2aff53; transform: rotateY(180deg) translateZ(40px); }
-        .yellow { background: #ffeb2a; transform: rotateY(-90deg) translateZ(40px); }
-        .white  { background: #ffffff; transform: rotateX(90deg) translateZ(40px); }
-        .pink   { background: #ff2ae2; transform: rotateX(-90deg) translateZ(40px); }
-
-        @keyframes rollingTumble {
-            0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
-            100% { transform: rotateX(360deg) rotateY(720deg) rotateZ(180deg); }
-        }
-
-        .spinning { animation: rollingTumble 0.2s infinite linear !important; }
+        button { background: #e1b12c; color: #000; font-weight: bold; cursor: pointer; border: none; transition: transform 0.1s, opacity 0.2s; }
+        button:hover { opacity: 0.9; transform: translateY(-1px); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
         .hidden { display: none !important; }
-        hr { border: 0; height: 1px; background: var(--border-color); margin: 20px 0; }
         
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
-        th, td { padding: 10px; border: 1px solid var(--border-color); text-align: left; }
-        th { background-color: var(--bg-color); }
-        .badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; color: white; }
-        .bg-success { background-color: #2ecc71; }
-        .bg-secondary { background-color: #7f8c8d; }
+        /* Theme and Global Toolbar Configuration */
+        .utility-bar { max-width: 750px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+        .theme-btn { width: auto; font-size: 13px; padding: 6px 12px; background: #718093; color: #fff; }
+        .logout-btn { width: auto; font-size: 13px; padding: 6px 12px; background: #c23616; color: #fff; }
+
+        /* 3D Dice Cylinder tumbling systems */
+        .dice-container { display: flex; justify-content: center; gap: 40px; margin: 30px auto; min-height: 140px; }
+        .cube { width: 80px; height: 80px; position: relative; transform-style: preserve-3d; transition: transform 1.5s cubic-bezier(0.25, 1, 0.5, 1); }
+        .face { position: absolute; width: 80px; height: 80px; border: 3px solid rgba(0,0,0,0.4); border-radius: 14px; box-sizing: border-box; }
+        
+        .red { background: #ff2a2a; transform: rotateY(0deg) translateZ(40px); }
+        .blue { background: #2a75ff; transform: rotateY(90deg) translateZ(40px); }
+        .green { background: #2aff53; transform: rotateY(180deg) translateZ(40px); }
+        .yellow { background: #ffeb2a; transform: rotateY(-90deg) translateZ(40px); }
+        .white { background: #ffffff; transform: rotateX(90deg) translateZ(40px); }
+        .pink { background: #ff2ae2; transform: rotateX(-90deg) translateZ(40px); }
+
+        /* Rotational Animation Frame states */
+        .spinning { animation: tumbleContinuous 0.2s infinite linear; }
+        @keyframes tumbleContinuous {
+            0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+            100% { transform: rotateX(360deg) rotateY(360deg) rotateZ(360deg); }
+        }
+
+        /* Responsive Layout Tables */
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; background: rgba(0,0,0,0.1); }
+        th, td { padding: 10px; border: 1px solid var(--border-panel); text-align: left; font-size: 14px; }
+        th { background: rgba(0,0,0,0.2); color: #e1b12c; }
+        .badge { padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+        .bg-success { background: #2cd15a; color: #fff; }
+        .bg-secondary { background: #718093; color: #fff; }
     </style>
 </head>
 <body>
 
-    <button class="theme-toggle" onclick="toggleTheme()">🌓 Toggle Mode</button>
+    <div class="utility-bar">
+        <button class="theme-btn" onclick="toggleTheme()">🌓 Switch Theme</button>
+        <button id="global-logout" class="logout-btn hidden" onclick="triggerLogoff()">🚪 Exit System</button>
+    </div>
+
     <h1>🎰 Live Perya Multi-Server Engine 🎰</h1>
 
     <div id="login-panel" class="panel">
         <h3>Choose Your Server Room Group</h3>
         <select id="room_id">
-            <option value="Server_1">Sub-Server Admin #1 Group Table (Server 1)</option>
-            <option value="Server_2">Sub-Server Admin #2 Group Table (Server 2)</option>
-            <option value="Server_3">Sub-Server Admin #3 Group Table (Server 3)</option>
-            <option value="Server_4">Sub-Server Admin #4 Group Table (Server 4)</option>
-            <option value="Server_5">Sub-Server Admin #5 Group Table (Server 5)</option>
-            <option value="Server_6">Sub-Server Admin #6 Group Table (Server 6)</option>
-            <option value="Server_7">Sub-Server Admin #7 Group Table (Server 7)</option>
-            <option value="Server_8">Sub-Server Admin #8 Group Table (Server 8)</option>
-            <option value="Server_9">Sub-Server Admin #9 Group Table (Server 9)</option>
-            <option value="Server_10">Sub-Server Admin #10 Group Table (Server 10)</option>
+            <option value="Server_1">Sub-Server Admin #1 Group</option>
+            <option value="Server_2">Sub-Server Admin #2 Group</option>
+            <option value="Server_3">Sub-Server Admin #3 Group</option>
+            <option value="Server_4">Sub-Server Admin #4 Group</option>
+            <option value="Server_5">Sub-Server Admin #5 Group</option>
+            <option value="Server_6">Sub-Server Admin #6 Group</option>
+            <option value="Server_7">Sub-Server Admin #7 Group</option>
+            <option value="Server_8">Sub-Server Admin #8 Group</option>
+            <option value="Server_9">Sub-Server Admin #9 Group</option>
+            <option value="Server_10">Sub-Server Admin #10 Group</option>
         </select><br>
         <input type="text" id="username" placeholder="Username"><br>
         <input type="password" id="password" placeholder="Password"><br>
@@ -122,7 +120,9 @@
     <div id="game-board" class="panel hidden">
         <h2 id="display-room" style="color: #e1b12c;">Connected Room: </h2>
         <h3 id="display-user">Player: ---</h3>
-        <h3 id="display-balance" style="color: #2ecc71;">Balance: 0 Coins</h3>
+        <h4 style="background: rgba(0,0,0,0.2); padding: 10px; display: inline-block; border-radius: 5px;">
+            💰 Total Available Capital: <span id="playerBalanceDisplay" style="color: #2cd15a; font-weight: bold;">0 Coins</span>
+        </h4>
         <hr>
         
         <div class="dice-container">
@@ -142,240 +142,256 @@
         <hr>
 
         <button id="btn-request-pull" onclick="requestPull()">🙋‍♂️ Request to Pull Rope</button>
+        <button id="btn-pull-rope" class="hidden" style="background:#4cd137; color: #fff;" onclick="executeDirectPull()">🔔 PULL THE ROPE NOW</button>
         
-        <hr>
-        <h3>Withdraw Tokens</h3>
-        <input type="number" id="withdraw-amount" placeholder="Amount to Withdraw" style="width: 60%; max-width: 200px;">
-        <button onclick="submitWithdraw()" style="background: #e67e22; color: white; width: auto;">Submit Request</button>
-        
-        <br>
-        <button class="logout-btn" onclick="logout()">🚪 Exit Server</button>
+        <div style="margin-top: 20px; padding: 15px; border: 1px solid #444; border-radius: 8px;">
+            <h5>Request Balance Cashout (Withdrawal)</h5>
+            <input type="number" id="withdraw-amount" placeholder="Amount" style="width: 50%;">
+            <button style="background: #e67e22; color: #fff; width: auto;" onclick="submitWithdrawal()">Submit Cashout Request</button>
+        </div>
     </div>
 
     <div id="admin-panel" class="panel hidden" style="border: 2px solid #e1b12c;">
         <h2 id="admin-room-title" style="color: #e1b12c;">🛠️ Room Manager Control Deck</h2>
-        <h4 id="admin-circulation-title">Total Circulation: 0 Coins</h4>
+        <p>Tenant segregation parameters running. Admin operations affect only your designated station.</p>
+        
+        <div style="margin: 15px 0; padding: 15px; background: rgba(225,177,44,0.1); border-radius: 8px;">
+            <h4 style="margin: 0 0 10px 0;">🚨 Broadcast Master Server Override Action</h4>
+            <button style="background: #c23616; color:#fff; max-width: 100%; width: 90%;" onclick="adminForceServerRoll()">⚡ FORCE ROPE PULL ON ALL CONNECTED ROOM USERS</button>
+        </div>
         <hr>
         
-        <div>
-            <h3>Rope Pull Requests (Click to Authorize Spinning Roll Animation):</h3>
-            <div id="pull-request-list">No pending approvals.</div>
+        <div id="pull-requests-tray">
+            <h3>Rope Pull Permission Requests:</h3>
+            <div id="request-list">No pending requests.</div>
         </div>
-        
-        <button id="admin-spin-trigger-btn" class="hidden" style="background:#4cd137; color: #fff; animation: pulse 1s infinite;" onclick="executeAdminSpin()">🎲 CHOOSE LANDING COLORS & STOP SPIN 🎲</button>
         <hr>
 
-        <div>
-            <h3>Pending Player Cashout/Withdraw Requests:</h3>
-            <div id="withdraw-request-list">No pending transactions.</div>
-        </div>
+        <h3>Pending Cashout Reconciliations:</h3>
+        <div id="withdraw-list" style="text-align: left; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 5px;">No pending cashouts.</div>
         <hr>
         
-        <h3>Enroll/Create New User Profile:</h3>
+        <h3>Enroll User to Your Server Group:</h3>
         <input type="text" id="new-user" placeholder="New Player Username"><br>
-        <label style="margin-right: 15px;"><input type="checkbox" id="make-admin" style="width: auto;"> Promote to Sub-Server Master/Admin Account</label><br>
-        <button style="background: #4cd137; color: #fff;" onclick="createUser()">Add User Profile</button>
+        <button style="background: #4cd137; color: #fff;" onclick="createUser()">Add Player Profile</button>
         
-        <hr>
-        <h3>Enrolled Accounts Registry Table</h3>
+        <h4 style="margin-top: 25px;">Registered Room User Database Ledger:</h4>
         <table>
             <thead>
                 <tr>
-                    <th>User</th>
-                    <th>Credentials</th>
-                    <th>Balance</th>
-                    <th>Role</th>
-                    <th>Status</th>
+                    <th>Username</th>
+                    <th>Password String</th>
+                    <th>Ledger Coins</th>
+                    <th>Network Status</th>
                 </tr>
             </thead>
             <tbody id="allUsersTableBody"></tbody>
         </table>
-        
-        <br>
-        <button class="logout-btn" onclick="logout()">🚪 Exit Operational Control Panel</button>
     </div>
 
     <script>
         const socket = io();
-        let currentRoomId = "Server_1";
-        let targetColors = ["red", "red", "red"];
+        let currentUsername = "";
+        let currentRoomId = "";
+        let isAdmin = false;
 
-        // Color angle dictionary mapping to display final results
-        const rotationMap = {
-            "red": "rotateY(0deg) rotateX(0deg)",
-            "blue": "rotateY(-90deg) rotateX(0deg)",
-            "green": "rotateY(-180deg) rotateX(0deg)",
-            "yellow": "rotateY(90deg) rotateX(0deg)",
-            "white": "rotateX(-90deg) rotateY(0deg)",
-            "pink": "rotateX(90deg) rotateY(0deg)"
-        };
-
+        // Visual Layout Theme Configuration Management Engine
         function toggleTheme() {
             document.body.classList.toggle('light-theme');
         }
 
-        function submitLogin() {
-            const user = document.getElementById('username').value.trim();
-            const pass = document.getElementById('password').value;
-            currentRoomId = document.getElementById('room_id').value;
+        function triggerLogoff() {
+            window.location.reload();
+        }
 
-            if(!user || !pass) return alert("Please fill in fields.");
-            socket.emit('join_game', { username: user, password: pass, room_id: currentRoomId });
+        // Mapping calculated landing geometry orientation values onto the 3D target nodes
+        const colorRotationMap = {
+            "red": "rotateY(0deg)",
+            "blue": "rotateY(-90deg)",
+            "green": "rotateY(-180deg)",
+            "yellow": "rotateY(90deg)",
+            "white": "rotateX(-90deg)",
+            "pink": "rotateX(90deg)"
+        };
+
+        function submitLogin() {
+            const userField = document.getElementById('username').value.trim();
+            const passField = document.getElementById('password').value;
+            const roomSelect = document.getElementById('room_id').value;
+
+            if (!userField || !passField) {
+                alert("Please enter both username and password.");
+                return;
+            }
+
+            socket.emit('join_game', {
+                username: userField,
+                password: passField,
+                room_id: roomSelect
+            });
         }
 
         socket.on('user_status', function(data) {
+            currentUsername = data.username;
+            isAdmin = data.is_admin;
+            currentRoomId = data.room_id;
+
             document.getElementById('login-panel').classList.add('hidden');
-            
-            if(data.is_admin) {
+            document.getElementById('global-logout').classList.remove('hidden');
+
+            if (isAdmin) {
                 document.getElementById('admin-panel').classList.remove('hidden');
-                document.getElementById('admin-room-title').innerText = `🛠️ Control Deck: ${data.room_id}`;
+                document.getElementById('admin-room-title').innerText = `🛠️ Control Deck: ${currentRoomId.replace('_', ' ')}`;
             } else {
                 document.getElementById('game-board').classList.remove('hidden');
-                document.getElementById('display-room').innerText = `Connected Room: ${data.room_id}`;
-                document.getElementById('display-user').innerText = `Player: ${data.username}`;
-                document.getElementById('display-balance').innerText = `Balance: ${data.coins} Coins`;
-            }
-        });
-
-        socket.on('user_status_update', function(data) {
-            if(document.getElementById('display-balance')) {
-                document.getElementById('display-balance').innerText = `Balance: ${data.coins} Coins`;
+                document.getElementById('display-room').innerText = "Connected Room: " + currentRoomId.replace('_', ' ');
+                document.getElementById('display-user').innerText = "Player: " + currentUsername;
+                document.getElementById('playerBalanceDisplay').innerText = data.coins + " Coins";
             }
         });
 
         socket.on('login_failed', function(data) { alert(data.message); });
-        socket.on('admin_error', function(data) { alert(data.message); });
-        
-        socket.on('player_created', function(data) {
-            alert(`🎉 Member Saved Successfully!\n\nUser: ${data.username}\nPass: ${data.password}\nGroup System Scope: ${data.role}`);
-            document.getElementById('new-user').value = "";
-            document.getElementById('make-admin').checked = false;
+        socket.on('admin_error', function(data) { alert("Execution Halted: " + data.message); });
+
+        // Rolling Trigger Engine
+        function requestPull() {
+            socket.emit('request_pull');
+        }
+
+        socket.on('pull_requested_status', function(data) {
+            alert(data.message);
         });
 
-        // Pull management system actions
-        function requestPull() { socket.emit('request_pull'); }
-        socket.on('pull_requested_status', function(data) { alert(data.message); });
+        socket.on('pull_permission_granted', function() {
+            document.getElementById('btn-request-pull').classList.add('hidden');
+            document.getElementById('btn-pull-rope').classList.remove('hidden');
+        });
 
-        socket.on('start_dice_spin', function() {
+        function executeDirectPull() {
+            socket.emit('execute_pull');
+        }
+
+        function adminForceServerRoll() {
+            socket.emit('admin_forced_pull');
+        }
+
+        // Global animation logic block listener
+        socket.on('roll_start', function() {
+            // Disable buttons so they remain visible, never hidden
+            const mainPullBtn = document.getElementById('btn-pull-rope');
+            const mainReqBtn = document.getElementById('btn-request-pull');
+            
+            mainPullBtn.disabled = true;
+            mainReqBtn.disabled = true;
+            mainPullBtn.innerText = "⏳ ROLLING NOW...";
+
             document.getElementById('dice1').classList.add('spinning');
             document.getElementById('dice2').classList.add('spinning');
             document.getElementById('dice3').classList.add('spinning');
-            
-            const btn = document.getElementById('btn-request-pull');
-            if(btn) {
-                btn.disabled = true;
-                btn.innerText = "⏳ System Rolling...";
-            }
         });
 
         socket.on('roll_result', function(data) {
-            // Stop loop execution cycles
-            const d1 = document.getElementById('dice1');
-            const d2 = document.getElementById('dice2');
-            const d3 = document.getElementById('dice3');
+            // Instantly eliminate rotational loops to catch geometric assignments
+            document.getElementById('dice1').classList.remove('spinning');
+            document.getElementById('dice2').classList.remove('spinning');
+            document.getElementById('dice3').classList.remove('spinning');
 
-            d1.classList.remove('spinning');
-            d2.classList.remove('spinning');
-            d3.classList.remove('spinning');
-
-            // Force physical rotation to match target metrics
-            d1.style.transform = rotationMap[data.dice[0]];
-            d2.style.transform = rotationMap[data.dice[1]];
-            d3.style.transform = rotationMap[data.dice[2]];
-
-            const btn = document.getElementById('btn-request-pull');
-            if(btn) {
-                btn.disabled = false;
-                btn.innerText = "🙋‍♂️ Request to Pull Rope";
+            if (data.dice) {
+                document.getElementById('dice1').style.transform = colorRotationMap[data.dice[0]];
+                document.getElementById('dice2').style.transform = colorRotationMap[data.dice[1]];
+                document.getElementById('dice3').style.transform = colorRotationMap[data.dice[2]];
             }
+
+            // Restore buttons parameters status safely
+            const mainPullBtn = document.getElementById('btn-pull-rope');
+            const mainReqBtn = document.getElementById('btn-request-pull');
             
-            const adminBtn = document.getElementById('admin-spin-trigger-btn');
-            if(adminBtn) adminBtn.classList.add('hidden');
+            mainPullBtn.disabled = false;
+            mainReqBtn.disabled = false;
+            mainPullBtn.innerText = "🔔 PULL THE ROPE NOW";
+            
+            mainPullBtn.classList.add('hidden');
+            mainReqBtn.classList.remove('hidden');
+
+            if (!isAdmin && data.balances && data.balances[currentUsername] !== undefined) {
+                document.getElementById('playerBalanceDisplay').innerText = data.balances[currentUsername] + " Coins";
+            }
         });
 
-        function submitWithdraw() {
-            const amt = document.getElementById('withdraw-amount').value;
-            if(!amt) return alert("Enter amount.");
-            socket.emit('submit_withdraw', { amount: amt });
-            document.getElementById('withdraw-amount').value = "";
-        }
-
-        socket.on('withdraw_response', function(data) { alert(data.message); });
-
-        // Admin engine event handlers
+        // Accounts Enrollment management engine bindings
         function createUser() {
-            const user = document.getElementById('new-user').value.trim();
-            const isAdminCheck = document.getElementById('make-admin').checked;
-            socket.emit('create_player', { username: user, coins: 1000, make_admin: isAdminCheck });
+            const name = document.getElementById('new-user').value.trim();
+            if(!name) return alert("Type username first");
+            socket.emit('create_player', { username: name, coins: 1000 });
         }
 
-        function approvePullRequest(username) {
-            socket.emit('approve_pull', { username: username });
-            document.getElementById('admin-spin-trigger-btn').classList.remove('hidden');
-        }
-
-        function executeAdminSpin() {
-            socket.emit('execute_spin_results');
-        }
-
-        function processWithdrawRequest(id, action) {
-            socket.emit('process_withdraw', { id: id, action: action });
-        }
-
-        socket.on('admin_dashboard_update', function(data) {
-            document.getElementById('admin-circulation-title').innerText = `Total Currency Circulation: ${data.total_coins} Coins`;
-            
-            // Build Pull Requests List
-            const prList = document.getElementById('pull-request-list');
-            if(data.pull_requests.length === 0) {
-                prList.innerHTML = "No pending approvals.";
-            } else {
-                prList.innerHTML = "";
-                data.pull_requests.forEach(user => {
-                    prList.innerHTML += `<div style="background:#333; padding:10px; margin:5px; border-radius:6px; display:flex; justify-content:space-between; align-items:center;">
-                        <span>User <strong>${user}</strong> requested a spin roll execution sequence.</span>
-                        <button onclick="approvePullRequest('${user}')" style="width:auto; background:#2ecc71; color:white; margin:0;">Approve & Spin</button>
-                    </div>`;
-                });
-            }
-
-            // Build Withdraw Requests List
-            const wrList = document.getElementById('withdraw-request-list');
-            if(data.withdraw_requests.length === 0) {
-                wrList.innerHTML = "No pending transactions.";
-            } else {
-                wrList.innerHTML = "";
-                data.withdraw_requests.forEach(req => {
-                    wrList.innerHTML += `<div style="background:#333; padding:10px; margin:5px; border-radius:6px; display:flex; justify-content:space-between; align-items:center;">
-                        <span>Player <strong>${req.username}</strong> requested Cashout of <strong>💰 ${req.amount} Coins</strong></span>
-                        <div>
-                            <button onclick="processWithdrawRequest('${req.id}', 'approve')" style="width:auto; background:#2ecc71; color:white; margin:2px;">Approve</button>
-                            <button onclick="processWithdrawRequest('${req.id}', 'reject')" style="width:auto; background:#e74c3c; color:white; margin:2px;">Reject</button>
-                        </div>
-                    </div>`;
-                });
-            }
-
-            // Render Account Registry Table
-            const tbody = document.getElementById('allUsersTableBody');
-            tbody.innerHTML = "";
-            data.users.forEach(user => {
-                tbody.innerHTML += `<tr>
-                    <td><strong>${user.username}</strong></td>
-                    <td><code>${user.password}</code></td>
-                    <td>💰 ${user.coins}</td>
-                    <td><span style="color:${user.is_admin ? '#f1c40f':'#95a5a6'}">${user.is_admin ? 'Master Admin':'Standard Player'}</span></td>
-                    <td><span class="badge ${user.online ? 'bg-success':'bg-secondary'}">${user.online ? 'ONLINE':'OFFLINE'}</span></td>
-                </tr>`;
-            });
+        socket.on('player_created', function(data) {
+            alert(`🎉 Profile Enrolled Successfully!\nUser: ${data.username}\nGenerated Pass: ${data.password}`);
+            document.getElementById('new-user').value = "";
         });
 
-        function logout() {
-            socket.emit('leave_session');
+        // Cashout logic
+        function submitWithdrawal() {
+            const amt = parseInt(document.getElementById('withdraw-amount').value);
+            if (!amt || amt <= 0) return alert("Invalid cashout amount entered.");
+            socket.emit('request_withdraw', { amount: amt });
         }
 
-        socket.on('logout_confirmed', function() {
-            window.location.reload();
+        function approveCashout(wId) {
+            socket.emit('approve_withdraw', { withdraw_id: wId });
+        }
+
+        socket.on('withdraw_status', function(data) {
+            alert(data.message);
+            if(data.balance !== undefined) {
+                document.getElementById('playerBalanceDisplay').innerText = data.balance + " Coins";
+            }
+        });
+
+        // Realtime Admin Control Deck Update Pipeline
+        socket.on('admin_dashboard_update', function(data) {
+            if (!isAdmin) return;
+            
+            // 1. Process Request Pull Tray
+            const reqTray = document.getElementById('request-list');
+            if (data.pull_requests.length === 0) {
+                reqTray.innerHTML = "No pending requests.";
+            } else {
+                reqTray.innerHTML = "";
+                data.pull_requests.forEach(user => {
+                    reqTray.innerHTML += `<div><span>🙋‍♂️ <strong>${user}</strong> requested a spin sequence</span> 
+                    <button onclick="socket.emit('grant_pull_permission', {username: '${user}'})">Authorize Spin</button></div>`;
+                });
+            }
+
+            // 2. Process Cashout Tray
+            const withdrawTray = document.getElementById('withdraw-list');
+            if (data.pending_withdraws.length === 0) {
+                withdrawTray.innerHTML = "No pending cashouts.";
+            } else {
+                withdrawTray.innerHTML = "";
+                data.pending_withdraws.forEach(w => {
+                    withdrawTray.innerHTML += `<div style="background:#333; padding:10px; margin:5px 0; border-radius:5px; display:flex; justify-content:space-between; align-items:center;">
+                        <span>💰 <strong>${w.username}</strong> requested to cashout <strong>${w.amount} Coins</strong></span>
+                        <button style="background:#e67e22; color:white; width:auto; padding:5px 10px;" onclick="approveCashout('${w.id}')">Approve Cashout</button>
+                    </div>`;
+                });
+            }
+
+            // 3. Process Ledger Records
+            const tableBody = document.getElementById('allUsersTableBody');
+            if (tableBody) {
+                tableBody.innerHTML = "";
+                data.users.forEach(u => {
+                    if (u.is_admin) return;
+                    tableBody.innerHTML += `<tr>
+                        <td><strong>${u.username}</strong></td>
+                        <td><code>${u.password}</code></td>
+                        <td>💰 ${u.coins}</td>
+                        <td><span class="badge ${u.online ? 'bg-success' : 'bg-secondary'}">${u.online ? 'ONLINE' : 'OFFLINE'}</span></td>
+                    </tr>`;
+                });
+            }
         });
     </script>
 </body>
