@@ -116,129 +116,152 @@
             document.write('<script src="/static/socket.io.js"><\/script>');
         }
 
-        const socket = io();
-        let currentActiveUser = ""; 
-        
-        const targetRotationMap = { 
-            'red': 'rotateY(0deg) rotateX(0deg)', 
-            'blue': 'rotateY(-90deg) rotateX(0deg)', 
-            'green': 'rotateY(-180deg) rotateX(0deg)', 
-            'yellow': 'rotateY(90deg) rotateX(0deg)', 
-            'white': 'rotateX(-90deg) rotateY(0deg)', 
-            'pink': 'rotateX(90deg) rotateY(0deg)' 
-        };
+       // Establish Socket.IO connection
+const socket = io();
 
-        function connectToServer() {
-            // FIXED: Extracted values without declaring matching local variable shadow names
-            const userFieldValue = document.getElementById('username').value.trim();
-            const passFieldValue = document.getElementById('password').value;
-            const roomFieldValue = document.getElementById('room_id').value;
+// Tracking variables for the client
+let currentUsername = "";
+let currentRoomId = "Server_1"; 
+let isAdmin = false;
 
-            if(!userFieldValue || !passFieldValue) {
-                alert("Please fill in both fields!");
-                return;
-            }
+// Elements
+const loginForm = document.getElementById('loginForm');
+const gameBoard = document.getElementById('gameBoard');
+const adminPanel = document.getElementById('adminPanel');
+const pullRopeButton = document.getElementById('pullRopeButton');
+const addPlayerButton = document.getElementById('addPlayerButton');
+const usernameInput = document.getElementById('usernameInput');
 
-            currentActiveUser = userFieldValue;
+// ==========================================
+// 1. DICE ANIMATION & ROLL BUTTON HANDLING
+// ==========================================
 
-            socket.emit('join_game', {
-                username: userFieldValue,
-                password: passFieldValue,
-                room_id: roomFieldValue
-            });
+// Call this function when a roll/pull sequence begins
+function triggerDiceRollAnimation() {
+    // DO NOT HIDE THE BUTTON. Disable it and make it transparent instead.
+    if (pullRopeButton) {
+        pullRopeButton.disabled = true;
+        pullRopeButton.style.opacity = "0.6";
+        pullRopeButton.innerText = "⏳ Rolling Dice...";
+    }
+
+    // Add the CSS spinning animation class to all three dice boxes
+    const diceBoxes = document.querySelectorAll('.dice-box');
+    diceBoxes.forEach(box => {
+        box.classList.add('spinning');
+    });
+}
+
+// Call this function when the backend responds with final results
+function stopDiceRollAnimation() {
+    // Remove the CSS spinning class from all dice boxes
+    const diceBoxes = document.querySelectorAll('.dice-box');
+    diceBoxes.forEach(box => {
+        box.classList.remove('spinning');
+    });
+
+    // Restore the Pull button state completely
+    if (pullRopeButton) {
+        pullRopeButton.disabled = false;
+        pullRopeButton.style.opacity = "1";
+        pullRopeButton.innerText = "🔗 PULL THE ROPE";
+    }
+}
+
+// ==========================================
+// 2. SOCKET.IO OUTBOUND EMITTERS
+// ==========================================
+
+// Handle Login submission
+function submitLogin() {
+    const userField = document.getElementById('loginUsername').value.trim();
+    const passField = document.getElementById('loginPassword').value;
+    const roomSelect = document.getElementById('serverRoomSelect');
+    
+    if (roomSelect) {
+        currentRoomId = roomSelect.value;
+    }
+
+    if (!userField || !passField) {
+        alert("Please enter both username and password.");
+        return;
+    }
+
+    socket.emit('join_game', {
+        username: userField,
+        password: passField,
+        room_id: currentRoomId
+    });
+}
+
+// Handle Admin adding a player profile
+if (addPlayerButton) {
+    addPlayerButton.addEventListener('click', function() {
+        const newPlayerName = document.getElementById('newPlayerUsername').value.trim();
+        if (!newPlayerName) {
+            alert("Please type a username first.");
+            return;
         }
 
-        socket.on('user_status', function(data) {
-            document.getElementById('login-panel').classList.add('hidden');
-            document.getElementById('game-board').classList.remove('hidden');
-            
-            document.getElementById('display-room').innerText = "Connected Room: " + data.room_id.replace("_", " ");
-            document.getElementById('display-user').innerText = `User: ${data.username} | Balance: 💰 ${data.coins} Coins`;
-            
-            if(data.is_admin) {
-                document.getElementById('admin-panel').classList.remove('hidden');
-                document.getElementById('btn-request-pull').classList.add('hidden');
-                document.getElementById('btn-pull-rope').classList.remove('hidden');
-            } else {
-                document.getElementById('admin-panel').classList.add('hidden');
-                document.getElementById('btn-request-pull').classList.remove('hidden');
-                document.getElementById('btn-pull-rope').classList.add('hidden');
-            }
+        // Emit to server along with the current server room scope context
+        socket.emit('create_player', {
+            username: newPlayerName,
+            coins: 1000,
+            room_id: currentRoomId
         });
+    });
+}
 
-        function requestPull() {
-            socket.emit('request_pull', {});
-        }
+// Handle manual trigger click for pulling the rope
+if (pullRopeButton) {
+    pullRopeButton.addEventListener('click', function() {
+        triggerDiceRollAnimation(); // Instantly spin frontend boxes
+        socket.emit('request_pull');
+    });
+}
 
-        socket.on('pull_requested_status', function(data) {
-            alert(data.message);
-        });
-        
-        socket.on('pull_permission_granted', function() {
-            alert("🎉 The Admin has approved your request! Click the green button to spin the dice!");
-            document.getElementById('btn-request-pull').classList.add('hidden');
-            document.getElementById('btn-pull-rope').classList.remove('hidden');
-        });
+// ==========================================
+// 3. SOCKET.IO INBOUND LISTENERS
+// ==========================================
 
-        function triggerRoll() {
-            socket.emit('trigger_roll', {});
-            document.getElementById('btn-pull-rope').classList.add('hidden');
-            
-            if(document.getElementById('admin-panel').classList.contains('hidden')) {
-                document.getElementById('btn-request-pull').classList.remove('hidden');
-            }
-        }
+// User status response after trying to log in
+socket.on('user_status', function(data) {
+    currentUsername = data.username;
+    isAdmin = data.is_admin;
+    currentRoomId = data.room_id;
 
-        socket.on('dice_rolling', function() {
-            document.getElementById('dice1').className = "cube rolling";
-            document.getElementById('dice2').className = "cube rolling";
-            document.getElementById('dice3').className = "cube rolling";
-        });
+    // Hide login layer, reveal operational dashboard frames
+    if (loginForm) loginForm.style.display = 'none';
+    
+    if (isAdmin) {
+        if (adminPanel) adminPanel.style.display = 'block';
+        if (gameBoard) gameBoard.style.display = 'none';
+        document.getElementById('connectedRoomTitle').innerText = "Connected Room: " + currentRoomId.replace('_', ' ');
+    } else {
+        if (adminPanel) adminPanel.style.display = 'none';
+        if (gameBoard) gameBoard.style.display = 'block';
+        document.getElementById('playerBalanceDisplay').innerText = data.coins + " Coins";
+    }
+});
 
-        socket.on('roll_results', function(data) {
-            document.getElementById('dice1').className = "cube";
-            document.getElementById('dice2').className = "cube";
-            document.getElementById('dice3').className = "cube";
-            
-            setTimeout(() => {
-                document.getElementById('dice1').style.transform = targetRotationMap[data.dice[0]];
-                document.getElementById('dice2').style.transform = targetRotationMap[data.dice[1]];
-                document.getElementById('dice3').style.transform = targetRotationMap[data.dice[2]];
-            }, 50);
+// Capture failure triggers on connection attempts
+socket.on('login_failed', function(data) {
+    alert(data.message);
+});
 
-            setTimeout(() => { 
-                alert("🎰 Dice Result: " + data.dice.join(" | ").toUpperCase()); 
-            }, 1200);
-        });
+// Capture backend admin-specific notification alerts
+socket.on('admin_error', function(data) {
+    alert("Database Error: " + data.message);
+});
 
-        socket.on('admin_dashboard_update', function(data) {
-            if(data && data.pull_requests) {
-                let listHtml = "";
-                data.pull_requests.forEach(user => {
-                    listHtml += `<div><span>👤 <b>${user}</b> wants to pull</span> <button onclick="grantPermission('${user}')">Approve</button></div>`;
-                });
-                document.getElementById('request-list').innerHTML = listHtml || "No pending requests.";
-            }
-        });
+// Catch validation details when a user profile is saved successfully
+socket.on('player_created', function(data) {
+    alert(`🎉 Success!\nCreated profile: ${data.username}\nPass: ${data.password}`);
+    document.getElementById('newPlayerUsername').value = ""; // Clear input field
+});
 
-        function grantPermission(user) {
-            socket.emit('grant_pull_permission', { username: user });
-        }
-
-        function createUser() {
-            const nameInput = document.getElementById('new-user').value.trim();
-            if(!nameInput) return alert("Enter a username!");
-            socket.emit('create_player', { username: nameInput, coins: 1000 });
-            document.getElementById('new-user').value = "";
-        }
-
-        socket.on('player_created', function(data) {
-            document.getElementById('creation-log').innerHTML = `✅ Profile Added!<br>User: <code>${data.username}</code><br>Pass: <code>${data.password}</code>`;
-        });
-        
-        socket.on('login_failed', function(data) {
-            alert(data.message);
-        });
+// Real-time synchronization payload sent down by Python update_admin_panels engine
+socket.on('admin_dashboard_update', function
     </script>
 </body>
 </html>
