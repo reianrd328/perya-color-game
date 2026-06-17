@@ -69,10 +69,12 @@ def init_db():
             )
         """)
         
+       # Nested try block inside init_db()
         try:
             cursor.execute("ALTER TABLE users ADD COLUMN room_id VARCHAR(50) DEFAULT 'Server_1'")
             print("✅ Successfully injected missing 'room_id' column into users schema.")
         except Exception as col_err:
+            # pymysql errors return strings or tuples; checking the string works perfectly
             if "Duplicate column name" in str(col_err) or "1060" in str(col_err):
                 pass
             else:
