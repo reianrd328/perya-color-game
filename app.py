@@ -38,14 +38,14 @@ pull_requests = {}
 
 def get_db_connection():
     try:
-        return mysql.connector.connect(
+        return pymysql.connect(
             host=os.environ.get("DB_HOST", "localhost"),
             port=int(os.environ.get("DB_PORT", 3306)),  
             user=os.environ.get("DB_USER", "root"),
             password=os.environ.get("DB_PASSWORD", ""),
             database=os.environ.get("DB_NAME", "perya_color_game"),
-            ssl_ca="",
-            ssl_verify_cert=False
+            cursorclass=pymysql.cursors.DictCursor,
+            connect_timeout=10
         )
     except Exception as e:
         print(f"❌ Database connection failed: {e}")
