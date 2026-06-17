@@ -4,7 +4,8 @@ import string
 import time
 import threading
 from flask import Flask, render_template, request
-from flask_socketio import SocketIO, emit
+# Change the flask_socketio import line at the top to this:
+from flask_socketio import SocketIO, emit, join_room
 import mysql.connector
 
 def _load_dotenv(path=".env"):
