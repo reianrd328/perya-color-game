@@ -107,18 +107,16 @@
             });
         }
 
-        socket.on('user_status', function(data) {
-            document.getElementById('login-panel').classList.add('hidden');
-            document.getElementById('game-board').classList.remove('hidden');
-            document.getElementById('display-room').innerText = "Connected Room Server: " + data.room_id;
-            document.getElementById('display-user').innerText = "Account: " + data.username + " | 💰 " + data.coins + " Coins";
-            
-            if(data.is_admin) {
-                document.getElementById('admin-panel').classList.remove('hidden');
-                document.getElementById('btn-request-pull').classList.add('hidden');
-                document.getElementById('btn-pull-rope').classList.remove('hidden'); // Admins can always roll
-            }
+       socket.on('admin_dashboard_update', function(data) {
+    if (data && data.pull_requests) {
+        let listHtml = "";
+        data.pull_requests.forEach(user => {
+            listHtml += `<div style="margin:5px;">👤 ${user} <button onclick="grantPermission('${user}')">Approve Pull</button></div>`;
         });
+        const tray = document.getElementById('request-list');
+        if(tray) tray.innerHTML = listHtml || "No pending requests.";
+    }
+});
 
         function requestPull() {
             socket.emit('request_pull', {});
