@@ -2,384 +2,190 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Perya Color Game</title>
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <title>Live Multi-Server Perya Game</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socketio/4.0.1/socketio.js"></script>
     <style>
-        body { background: #151515; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; margin: 0; padding: 20px; }
-        .board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; max-width: 550px; margin: 20px auto; }
-        .color-slot { padding: 35px 5px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 1.1rem; text-shadow: 1px 1px 2px black; transition: transform 0.1s; color: white; }
-        .color-slot div { font-size: 1.3rem; margin-top: 5px; }
-        .color-slot:active { transform: scale(0.96); }
-        .dice-container { display: flex; justify-content: center; gap: 15px; margin: 20px auto; min-height: 85px; }
-        .die { width: 75px; height: 75px; border-radius: 12px; border: 2px solid rgba(255,255,255,0.4); display: inline-block; box-shadow: 0 4px 8px rgba(0,0,0,0.4); }
+        body { background-color: #1a1a1a; color: #fff; font-family: sans-serif; text-align: center; }
+        .server-tray { margin: 15px; padding: 10px; background: #2b2b2b; border-radius: 8px; }
+        select, input, button { padding: 8px; margin: 5px; font-size: 14px; border-radius: 4px; border: none; }
+        button { background: #e1b12c; color: #000; font-weight: bold; cursor: pointer; }
         
-        .rolling { animation: tumble 0.3s linear infinite; }
+        /* 🎲 3D DICE ANIMATION STYLES */
+        .dice-container { display: flex; justify-content: center; gap: 40px; margin: 30px auto; min-height: 120px; }
+        .cube { width: 80px; height: 80px; position: relative; transform-style: preserve-3d; transition: transform 3s cubic-bezier(0.2, 0.8, 0.3, 1); }
+        .face { position: absolute; width: 80px; height: 80px; border: 2px solid #000; border-radius: 10px; opacity: 0.9; }
+        
+        /* Color Alignments for the faces */
+        .red { background: #ff2a2a; transform: rotateY(0deg) translateZ(40px); }
+        .blue { background: #2a75ff; transform: rotateY(90deg) translateZ(40px); }
+        .green { background: #2aff53; transform: rotateY(180deg) translateZ(40px); }
+        .yellow { background: #ffeb2a; transform: rotateY(-90deg) translateZ(40px); }
+        .white { background: #ffffff; transform: rotateX(90deg) translateZ(40px); }
+        .pink { background: #ff2ae2; transform: rotateX(-90deg) translateZ(40px); }
+
+        /* Animation classes triggering tumbling */
+        .rolling { animation: tumble 0.5s infinite linear; }
         @keyframes tumble {
-            0% { transform: translateY(0) rotate(0deg); }
-            50% { transform: translateY(-10px) rotate(180deg); }
-            100% { transform: translateY(0) rotate(360deg); }
+            0% { transform: rotateX(0deg) rotateY(0deg); }
+            100% { transform: rotateX(360deg) rotateY(360deg); }
         }
 
-        #login-form-box, #player-dashboard, #admin-panel { background: #222; border: 1px solid #333; padding: 20px; max-width: 550px; margin: 20px auto; border-radius: 10px; box-shadow: 0 8px 16px rgba(0,0,0,0.5); }
-        #admin-panel { background: #2d1f1f; border-color: #422a2a; } /* Distinct maroon look matching your reference image */
-        
-        input, select, button { padding: 8px 12px; margin: 5px; border-radius: 4px; border: 1px solid #444; background: #333; color: white; font-size: 0.95rem; }
-        button { background: #eee; color: #111; font-weight: bold; cursor: pointer; border: none; }
-        button:hover { background: #fff; }
-        
-        .rope-btn { background: #ffcc00; color: black; font-weight: bold; font-size: 1.1rem; padding: 10px 25px; border-radius: 4px; box-shadow: 0 4px 0 #b38f00; cursor: pointer; }
-        .rope-btn:active { transform: translateY(3px); box-shadow: none; }
-
-        .dashboard-section { margin-top: 15px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); text-align: left; font-size: 0.95rem; }
-        .section-title { font-weight: bold; color: #ffcc00; display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
-        #logs { max-width: 550px; margin: 20px auto; background: #111; border-radius: 6px; padding: 12px; text-align: left; font-family: monospace; color: #aaa; font-size: 0.85rem; height: 100px; overflow-y: auto; }
+        .hidden { display: none; }
+        .panel { background: #222; max-width: 600px; margin: 20px auto; padding: 20px; border-radius: 10px; }
     </style>
 </head>
 <body>
 
-    <h1>🎰 Live Perya Color Game 🎰</h1>
+    <h1>🎰 Live Perya Multi-Server Engine 🎰</h1>
 
-    <div class="dice-container">
-        <div class="die" id="die0" style="background: #555;"></div>
-        <div class="die" id="die1" style="background: #555;"></div>
-        <div class="die" id="die2" style="background: #555;"></div>
-    </div>
-
-    <div id="rope-container" style="display:none; margin-bottom:20px;">
-        <button class="rope-btn" onclick="triggerRollServer()">🔗 PULL THE ROPE</button>
-    </div>
-
-    <div id="login-form-box">
+    <div id="login-panel" class="panel">
+        <h3>Choose Your Server Room Group</h3>
+        <select id="room_id">
+            <option value="Server_1">Sub-Server Admin #1 Group</option>
+            <option value="Server_2">Sub-Server Admin #2 Group</option>
+            <option value="Server_3">Sub-Server Admin #3 Group</option>
+            <option value="Server_4">Sub-Server Admin #4 Group</option>
+            <option value="Server_5">Sub-Server Admin #5 Group</option>
+            <option value="Server_6">Sub-Server Admin #6 Group</option>
+            <option value="Server_7">Sub-Server Admin #7 Group</option>
+            <option value="Server_8">Sub-Server Admin #8 Group</option>
+            <option value="Server_9">Sub-Server Admin #9 Group</option>
+            <option value="Server_10">Sub-Server Admin #10 Group</option>
+        </select><br>
         <input type="text" id="username" placeholder="Username">
-        <input type="password" id="password" placeholder="Password">
-        <button onclick="connectPlayer()">Login to Live Table</button>
-        <p style="font-size:0.8rem; color:#777; margin-top:10px;">Players: use credentials provided directly by your administrator.</p>
+        <input type="password" id="password" placeholder="Password"><br>
+        <button onclick="connectToServer()">Login to Selected Table</button>
     </div>
 
-    <div id="player-dashboard" style="display:none;">
-        <p style="font-size:1.1rem; margin:5px 0;">Wallet Balance: <span id="balance-display" style="color:#00ffcc; font-weight:bold;">0</span> Coins</p>
-        <p style="margin:5px 0;">🔥 Total Coins: <span id="total-coins-display" style="color:#ffcc00; font-weight:bold;">0</span> <span style="font-size:0.75rem; color:#888;">(wallet + table stakes)</span></p>
-        <p style="margin:5px 0;">🏆 Total Coins Earned: <span id="earned-display" style="color:#ffd700;">0</span></p>
-        <p style="margin:5px 0;">💸 Total Withdrawn: <span id="withdrawn-display" style="color:#ff6666;">0</span></p>
+    <div id="game-board" class="hidden">
+        <h2 id="display-room">Connected Room: </h2>
+        <h3 id="display-user">Player: </h3>
         
-        <div style="margin-top:15px;">
-            <label>Bet Value: </label>
-            <select id="bet-amount">
-                <option value="10">10 Coins</option>
-                <option value="50">50 Coins</option>
-                <option value="100" selected>100 Coins</option>
-                <option value="500">500 Coins</option>
-            </select>
-            <button onclick="clearBets()" style="background:#555; color:white; margin-left:10px;">↩️ Clear Board Bets</button>
+        <div class="dice-container">
+            <div class="cube" id="dice1">
+                <div class="face red"></div><div class="face blue"></div><div class="face green"></div>
+                <div class="face yellow"></div><div class="face white"></div><div class="face pink"></div>
+            </div>
+            <div class="cube" id="dice2">
+                <div class="face red"></div><div class="face blue"></div><div class="face green"></div>
+                <div class="face yellow"></div><div class="face white"></div><div class="face pink"></div>
+            </div>
+            <div class="cube" id="dice3">
+                <div class="face red"></div><div class="face blue"></div><div class="face green"></div>
+                <div class="face yellow"></div><div class="face white"></div><div class="face pink"></div>
+            </div>
         </div>
 
-        <div style="margin-top:15px; border-top:1px solid #333; padding-top:10px;">
-            <input type="number" id="withdraw-amount" placeholder="Amount to cash-out" style="width:140px;">
-            <button onclick="requestWithdrawal()" style="background:#cc3333; color:white;">Request Cashout</button>
-        </div>
+        <button id="btn-request-pull" onclick="requestPull()">🙋‍♂️ Request to Pull Rope</button>
+        <button id="btn-pull-rope" class="hidden" style="background:#4cd137;" onclick="triggerRoll()">🔔 PULL THE ROPE NOW</button>
     </div>
 
-    <div id="admin-panel" style="display:none;">
-        <h3 style="margin-top:0; color:#ffb3b3;">👤 Admin: Create Login</h3>
-        <input type="text" id="new-player-name" placeholder="New username" style="width:150px;">
-        <label>Starting:</label>
-        <select id="new-player-coins">
-            <option value="500">500</option>
-            <option value="1000" selected>1000</option>
-            <option value="5000">5000</option>
-        </select>
-        <label><input type="checkbox" id="new-player-admin"> Make admin</label>
-        <button onclick="createPlayer()" style="background:#449d44; color:white;">Create Login</button>
-        <div id="created-players-log" style="color:#00ffcc; font-family:monospace; font-size:0.85rem; margin-top:5px;"></div>
-
-        <div class="dashboard-section">
-            <div class="section-title">🐫 Pending Roll Requests</div>
-            <div id="pending-rolls-box" style="color:#aaa; font-style:italic;">No pending requests.</div>
+    <div id="admin-panel" class="panel hidden">
+        <h2>🛠️ Room Manager Control Deck</h2>
+        <div id="pull-requests-tray">
+            <h3>Rope Pull Permission Requests:</h3>
+            <div id="request-list">No pending requests.</div>
         </div>
-
-        <div class="dashboard-section">
-            <div class="section-title">🏦 Pending Withdraw Requests</div>
-            <div id="pending-withdraws-box" style="color:#aaa; font-style:italic;">No pending withdrawals.</div>
-        </div>
-
-        <div class="dashboard-section">
-            <div class="section-title">🟢 Logged-In Players</div>
-            <div id="player-roster" style="color:#eee;">No players online.</div>
-        </div>
-
-        <div class="dashboard-section">
-            <div class="section-title">📋 All Created Users</div>
-            <div id="all-users-box" style="font-family:monospace; font-size:0.85rem; color:#ccc;">No users yet.</div>
-        </div>
-
-        <div style="margin-top:15px; font-weight:bold; color:#ffcc00; text-align:left;">
-            💰 Total coins in circulation: <span id="circulation-total">0</span>
-        </div>
-
-        <div class="dashboard-section" style="border-top:1px solid #553333;">
-            <div class="section-title">🎟️ Generate Coin Code</div>
-            <label>Code Value: </label>
-            <select id="code-generation-value">
-                <option value="100">100 Coins</option>
-                <option value="500">500 Coins</option>
-                <option value="1000">1000 Coins</option>
-            </select>
-            <button onclick="triggerCodeGeneration()">Generate Code</button>
-            <div id="generated-vouchers-ledger" style="margin-top:8px; font-family:monospace; color:#ffcc00;"></div>
-        </div>
+        <hr>
+        <h3>Add User to Your Server Group:</h3>
+        <input type="text" id="new-user" placeholder="New Player Username">
+        <button onclick="createUser()">Add Player Profile</button>
+        <p id="creation-log" style="color:#4cd137;"></p>
     </div>
-
-    <div id="redeem-box" style="display:none; background:#222; padding:15px; max-width:550px; margin:20px auto; border-radius:8px; border:1px solid #333;">
-        <label>Got a code? </label>
-        <input type="text" id="redeem-code-input" placeholder="XXXX-XXXX" style="text-transform:uppercase; text-align:center; width:120px;">
-        <button onclick="redeemVoucherCode()" style="background: #ffcc00; color:black;">Redeem</button>
-    </div>
-
-    <h3>Place Your Bets Below:</h3>
-    <div class="board">
-        <div class="color-slot" style="background: #ff3333;" onclick="handleGridStakeSelection('red')">RED<div id="bet-red">0</div></div>
-        <div class="color-slot" style="background: #1a75ff;" onclick="handleGridStakeSelection('blue')">BLUE<div id="bet-blue">0</div></div>
-        <div class="color-slot" style="background: #2eb82e;" onclick="handleGridStakeSelection('green')">GREEN<div id="bet-green">0</div></div>
-        <div class="color-slot" style="background: #e6b800;" onclick="handleGridStakeSelection('yellow')">YELLOW<div id="bet-yellow">0</div></div>
-        <div class="color-slot" style="background: #ffffff; color: #111;" onclick="handleGridStakeSelection('white')">WHITE<div id="bet-white">0</div></div>
-        <div class="color-slot" style="background: #ffb3d9; color: #111;" onclick="handleGridStakeSelection('pink')">PINK<div id="bet-pink">0</div></div>
-    </div>
-
-    <div id="logs">Live Activity Log:<br></div>
 
     <script>
         const socket = io();
-        let currentSessionUser = "";
-        let isAdminStatus = false;
-        let activeWalletCoins = 0;
-        let localStakedTableMatrix = { red:0, blue:0, green:0, yellow:0, white:0, pink:0 };
-        let localTumbleTimer = null;
-        
-        const RENDER_HEX_COLORS = { red:'#ff3333', blue:'#1a75ff', green:'#2eb82e', yellow:'#e6b800', white:'#ffffff', pink:'#ffb3d9' };
+        let myUsername = "";
+        let targetRotationMap = { 'red': 'rotateY(0deg)', 'blue': 'rotateY(-90deg)', 'green': 'rotateY(-180deg)', 'yellow': 'rotateY(90deg)', 'white': 'rotateX(-90deg)', 'pink': 'rotateX(90deg)' };
 
-        function updateClientWalletLayout(amount) {
-            activeWalletCoins = amount;
-            document.getElementById("balance-display").textContent = amount;
-            const liveStakes = Object.values(localStakedTableMatrix).reduce((a, b) => a + b, 0);
-            document.getElementById("total-coins-display").textContent = amount + liveStakes;
-        }
-
-        function connectPlayer() {
-            const user = document.getElementById("username").value.trim();
-            const pass = document.getElementById("password").value;
-            if(!user || !pass) return alert("Please complete form credentials entry templates.");
-            currentSessionUser = user;
-            socket.emit('join_game', { username: user, password: pass });
-        }
-
-        function handleGridStakeSelection(color) {
-            if(!currentSessionUser) return alert("Log in to the game server interface platform first.");
-            if(isAdminStatus) return alert("Admins observe game infrastructure and cannot stake chips.");
-            const amount = parseInt(document.getElementById("bet-amount").value);
-            socket.emit('place_bet', { username: currentSessionUser, color: color, amount: amount });
-        }
-
-        function clearBets() {
-            socket.emit('clear_bets', { username: currentSessionUser });
-        }
-
-        function requestWithdrawal() {
-            const amt = parseInt(document.getElementById("withdraw-amount").value);
-            if(!amt || amt <= 0) return alert("Specify a valid token total adjustment parameter.");
-            socket.emit('request_withdrawal', { username: currentSessionUser, amount: amt });
-            document.getElementById("withdraw-amount").value = "";
-        }
-
-        function createPlayer() {
-            const name = document.getElementById("new-player-name").value.trim();
-            if(!name) return alert("Specify target creation name parameter values.");
-            const startCoins = parseInt(document.getElementById("new-player-coins").value);
-            const adminCheck = document.getElementById("new-player-admin").checked;
-            socket.emit('create_player', { username: name, coins: startCoins, is_admin: adminCheck });
-            document.getElementById("new-player-name").value = "";
-        }
-
-        function triggerCodeGeneration() {
-            const val = parseInt(document.getElementById("code-generation-value").value);
-            socket.emit('generate_code', { amount: val });
-        }
-
-        function redeemVoucherCode() {
-            const targetString = document.getElementById("redeem-code-input").value.trim();
-            if(!targetString) return alert("Enter dynamic voucher values layout.");
-            socket.emit('redeem_code', { username: currentSessionUser, code: targetString });
-        }
-
-        function triggerRollServer() {
-            socket.emit('trigger_roll', {});
-        }
-
-        function approveWithdrawItem(id) {
-            socket.emit('approve_withdraw', { id: id });
-        }
-
-        function executeBanItem(username) {
-            if(confirm(`Enforce irreversible deployment termination layout tracking on profile "${username}"?`)) {
-                socket.emit('terminate_player', { username: username });
-            }
-        }
-
-        function logDisplayAppend(text) {
-            const logBox = document.getElementById("logs");
-            logBox.innerHTML += `${text}<br>`;
-            logBox.scrollTop = logBox.scrollHeight;
-        }
-
-        function resetLocalBoardLayout() {
-            localStakedTableMatrix = { red:0, blue:0, green:0, yellow:0, white:0, pink:0 };
-            Object.keys(localStakedTableMatrix).forEach(c => {
-                document.getElementById(`bet-${c}`).textContent = "0";
+        function connectToServer() {
+            myUsername = document.getElementById('username').value;
+            socket.emit('join_game', {
+                username: myUsername,
+                password: document.getElementById('password').value,
+                room_id: document.getElementById('room_id').value
             });
-            const totalDisplay = document.getElementById("total-coins-display");
-            if(totalDisplay) totalDisplay.textContent = activeWalletCoins;
         }
-
-        /* ----- Realtime Communication Framework Triggers ----- */
 
         socket.on('user_status', function(data) {
-            isAdminStatus = !!data.is_admin;
-            document.getElementById("login-form-box").style.display = "none";
-            document.getElementById("player-dashboard").style.display = isAdminStatus ? "none" : "block";
-            document.getElementById("redeem-box").style.display = isAdminStatus ? "none" : "block";
-            document.getElementById("rope-container").style.display = isAdminStatus ? "block" : "none";
-            document.getElementById("admin-panel").style.display = isAdminStatus ? "block" : "none";
+            document.getElementById('login-panel').classList.add('hidden');
+            document.getElementById('game-board').classList.remove('hidden');
+            document.getElementById('display-room').innerText = "Connected Room Server: " + data.room_id;
+            document.getElementById('display-user').innerText = "Account: " + data.username + " | 💰 " + data.coins + " Coins";
             
-            if(!isAdminStatus) {
-                updateClientWalletLayout(data.coins);
-                document.getElementById("earned-display").textContent = data.total_earned;
-                document.getElementById("withdrawn-display").textContent = data.total_withdrawn;
+            if(data.is_admin) {
+                document.getElementById('admin-panel').classList.remove('hidden');
+                document.getElementById('btn-request-pull').classList.add('hidden');
+                document.getElementById('btn-pull-rope').classList.remove('hidden'); // Admins can always roll
             }
-            logDisplayAppend(isAdminStatus ? "🛠️ Logged in as ADMIN." : `✅ Connected as user profile: ${currentSessionUser}`);
         });
 
-        socket.on('login_failed', function(data) {
-            alert(data.message);
-            logDisplayAppend(`🚫 Login rejected: ${data.message}`);
+        function requestPull() {
+            socket.emit('request_pull', {});
+        }
+
+        socket.on('pull_requested_status', data => alert(data.message));
+        
+        socket.on('pull_permission_granted', function() {
+            alert("🎉 The Admin has approved your request! You have access to pull the rope once.");
+            document.getElementById('btn-request-pull').classList.add('hidden');
+            document.getElementById('btn-pull-rope').classList.remove('hidden');
         });
 
-        socket.on('bet_placed', function(data) {
-            localStakedTableMatrix[data.color] = data.color_total;
-            document.getElementById(`bet-${data.color}`).textContent = data.color_total;
-            updateClientWalletLayout(data.coins);
-        });
-
-        socket.on('bet_rejected', function(data) {
-            alert(data.message);
-        });
-
-        socket.on('bets_cleared', function(data) {
-            resetLocalBoardLayout();
-            updateClientWalletLayout(data.coins);
-            logDisplayAppend(`↩️ Returned processing chips total allocation: ${data.refunded} coins.`);
-        });
-
-        socket.on('withdraw_result', function(data) {
-            alert(data.message);
-            logDisplayAppend(data.success ? `💸 Withdrawal request synced.` : `⚠️ Cashout error layout parameters logic missing.`);
-        });
-
-        socket.on('player_created', function(data) {
-            document.getElementById("created-players-log").innerHTML += `Created profile: <b>${data.username}</b> Pass: <b>${data.password}</b><br>`;
-        });
-
-        socket.on('code_generated', function(data) {
-            document.getElementById("generated-vouchers-ledger").innerHTML += `Code Generated: <b>${data.code}</b> (${data.amount} c)<br>`;
-        });
-
-        socket.on('redeem_result', function(data) {
-            alert(data.message);
-            if(data.success) document.getElementById("redeem-code-input").value = "";
-        });
-
-        socket.on('admin_dashboard_update', function(data) {
-            if(!isAdminStatus) return;
-            
-            document.getElementById("circulation-total").textContent = data.total_coins;
-
-            // Render Dynamic Pending Table Roll Form Matrices
-            const rollBox = document.getElementById("pending-rolls-box");
-            if(data.pending_rolls.length === 0) {
-                rollBox.innerHTML = "No pending requests.";
-            } else {
-                rollBox.innerHTML = data.pending_rolls.map(r => `🎲 <b>${r.username}</b> locked in stakes totaling: ${r.amount} Coins`).join("<br>");
+        function triggerRoll() {
+            socket.emit('trigger_roll', {});
+            document.getElementById('btn-pull-rope').classList.add('hidden');
+            if(document.getElementById('admin-panel').classList.contains('hidden')) {
+                document.getElementById('btn-request-pull').classList.remove('hidden');
             }
-
-            // Render Dynamic Cashout Withdraw Request Items
-            const withdrawBox = document.getElementById("pending-withdraws-box");
-            if(data.pending_withdraws.length === 0) {
-                withdrawBox.innerHTML = "No pending withdrawals.";
-            } else {
-                withdrawBox.innerHTML = data.pending_withdraws.map(w => 
-                    `💰 <b>${w.username}</b> requested cashout layout of ${w.amount} Coins 
-                     <button onclick="approveWithdrawItem(${w.id})" style="background:#5cb85c; color:white; padding:2px 8px; font-size:0.8rem;">Approve</button>`
-                ).join("<br>");
-            }
-
-            // Render Active online lists arrays templates
-            const roster = document.getElementById("player-roster");
-            if(data.players.length === 0) {
-                roster.innerHTML = "No players online.";
-            } else {
-                roster.innerHTML = data.players.map(p => `🟢 <b>${p.username}</b> — Wallet: ${p.coins} | Staked: ${p.staked} | Total System Footprint: ${p.total}`).join("<br>");
-            }
-
-            // Render Complete user database lists
-            document.getElementById("all-users-box").innerHTML = data.users.map(u => {
-                const marker = u.online ? '🟢' : '⚪';
-                const restriction = u.active ? `<button onclick="executeBanItem('${u.username}')" style="background:#d9534f; color:white; padding:2px 6px; font-size:0.75rem;">Ban</button>` : '<span style="color:#ff3333;">[BANNED]</span>';
-                return `${marker} Profile: <b>${u.username}</b> (Password: ${u.password}) — Val: ${u.coins} Coins ${restriction}`;
-            }).join("<br>");
-        });
+        }
 
         socket.on('dice_rolling', function() {
-            logDisplayAppend("🎰 Dealer is pulling the rope... Dice are rolling live!");
-            for(let i=0; i<3; i++) document.getElementById(`die${i}`).classList.add('rolling');
-
-            if(localTumbleTimer) clearInterval(localTumbleTimer);
-            const arrayColors = Object.values(RENDER_HEX_COLORS);
-            localTumbleTimer = setInterval(() => {
-                for(let i=0; i<3; i++) {
-                    document.getElementById(`die${i}`).style.backgroundColor = arrayColors[Math.floor(Math.random() * arrayColors.length)];
-                }
-            }, 80);
+            // Apply infinite tumble CSS classes instantly to initiate spin loop animation
+            document.getElementById('dice1').className = "cube rolling";
+            document.getElementById('dice2').className = "cube rolling";
+            document.getElementById('dice3').className = "cube rolling";
         });
 
         socket.on('roll_results', function(data) {
-            if(localTumbleTimer) { clearInterval(localTumbleTimer); localTumbleTimer = null; }
-
-            for(let i=0; i<3; i++) {
-                const resultColor = data.dice[i];
-                const element = document.getElementById(`die${i}`);
-                element.classList.remove('rolling');
-                element.style.backgroundColor = RENDER_HEX_COLORS[resultColor];
-            }
-
-            logDisplayAppend(`🎲 Dice Landed Match Parameters: [ ${data.dice.join(' | ').toUpperCase()} ]`);
+            // Stop the spinning motion loop
+            document.getElementById('dice1').className = "cube";
+            document.getElementById('dice2').className = "cube";
+            document.getElementById('dice3').className = "cube";
             
-            if(!isAdminStatus) {
-                if(data.payouts[currentSessionUser]) {
-                    logDisplayAppend(`🎉 Win validation confirmed! You claimed ${data.payouts[currentSessionUser]} coins layout rewards!`);
-                } else if(Object.values(localStakedTableMatrix).some(v => v > 0)) {
-                    logDisplayAppend("❌ No matches hit this rotation sequence frame.");
-                }
+            // Apply 3D matrix transforms to land exactly on the correct side color
+            setTimeout(() => {
+                document.getElementById('dice1').style.transform = targetRotationMap[data.dice[0]];
+                document.getElementById('dice2').style.transform = targetRotationMap[data.dice[1]];
+                document.getElementById('dice3').style.transform = targetRotationMap[data.dice[2]];
+            }, 50);
+
+            setTimeout(() => { alert("Dice result: " + data.dice.join(" | ")); }, 1000);
+        });
+
+        socket.on('admin_dashboard_update', function(data) {
+            if(data.pull_requests) {
+                let listHtml = "";
+                data.pull_requests.forEach(user => {
+                    listHtml += `<div style="margin:5px;">👤 ${user} <button onclick="grantPermission('${user}')">Approve Pull</button></div>`;
+                });
+                document.getElementById('request-list').innerHTML = listHtml || "No pending requests.";
             }
-            resetLocalBoardLayout();
         });
 
-        socket.on('force_logout', function(data) {
-            alert(data.message);
-            window.location.reload();
-        });
+        function grantPermission(user) {
+            socket.emit('grant_pull_permission', { username: user });
+        }
 
-        socket.on('admin_error', function(data) {
-            alert(data.message);
+        function createUser() {
+            socket.emit('create_player', { username: document.getElementById('new-user').value, coins: 5000, is_admin: false });
+        }
+
+        socket.on('player_created', function(data) {
+            document.getElementById('creation-log').innerText = `Created Player Profile -> User: ${data.username} | Temporary Pass: ${data.password}`;
         });
+        
+        socket.on('login_failed', data => alert(data.message));
     </script>
 </body>
 </html>
