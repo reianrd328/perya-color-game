@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Live Multi-Server Perya Game</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socketio/4.0.1/socketio.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js"></script>
     <style>
         body { background-color: #1a1a1a; color: #fff; font-family: sans-serif; text-align: center; padding: 20px; }
         .panel { background: #222; max-width: 600px; margin: 20px auto; padding: 25px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
@@ -12,12 +12,10 @@
         button { background: #e1b12c; color: #000; font-weight: bold; cursor: pointer; transition: 0.2s; }
         button:hover { background: #fbc531; }
         
-        /* 🎲 3D ANIMATED DICE SYSTEMS */
         .dice-container { display: flex; justify-content: center; gap: 30px; margin: 30px auto; min-height: 120px; }
         .cube { width: 80px; height: 80px; position: relative; transform-style: preserve-3d; transition: transform 2s cubic-bezier(0.2, 0.8, 0.3, 1); }
         .face { position: absolute; width: 80px; height: 80px; border: 2px solid #000; border-radius: 12px; opacity: 0.95; }
         
-        /* Side Alignments Mapping colors to surfaces */
         .red { background: #ff2a2a; transform: rotateY(0deg) translateZ(40px); }
         .blue { background: #2a75ff; transform: rotateY(90deg) translateZ(40px); }
         .green { background: #2aff53; transform: rotateY(180deg) translateZ(40px); }
@@ -25,7 +23,6 @@
         .white { background: #ffffff; transform: rotateX(90deg) translateZ(40px); }
         .pink { background: #ff2ae2; transform: rotateX(-90deg) translateZ(40px); }
 
-        /* Animation class that runs during the 3-second backend wait */
         .rolling { animation: tumble 0.4s infinite linear; }
         @keyframes tumble {
             0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
@@ -50,11 +47,6 @@
             <option value="Server_3">Sub-Server Admin #3 Group</option>
             <option value="Server_4">Sub-Server Admin #4 Group</option>
             <option value="Server_5">Sub-Server Admin #5 Group</option>
-            <option value="Server_6">Sub-Server Admin #6 Group</option>
-            <option value="Server_7">Sub-Server Admin #7 Group</option>
-            <option value="Server_8">Sub-Server Admin #8 Group</option>
-            <option value="Server_9">Sub-Server Admin #9 Group</option>
-            <option value="Server_10">Sub-Server Admin #10 Group</option>
         </select><br>
         <input type="text" id="username" placeholder="Username"><br>
         <input type="password" id="password" placeholder="Password"><br>
@@ -104,10 +96,15 @@
     </div>
 
     <script>
+        // Check if Socket.IO successfully attached to the window instance
+        if (typeof io === 'undefined') {
+            alert("⚠️ CDN Network Blocked. Falling back to local socket routing definitions.");
+            document.write('<script src="/static/socket.io.js"><\/script>');
+        }
+
         const socket = io();
-        let myUsername = "";
+        let currentActiveUser = ""; 
         
-        // Maps face orientations to colors perfectly
         const targetRotationMap = { 
             'red': 'rotateY(0deg) rotateX(0deg)', 
             'blue': 'rotateY(-90deg) rotateX(0deg)', 
@@ -118,24 +115,26 @@
         };
 
         function connectToServer() {
-            myUsername = document.getElementById('username').value.trim();
-            const pass = document.getElementById('password').value;
-            const room = document.getElementById('room_id').value;
+            // FIXED: Extracted values without declaring matching local variable shadow names
+            const userFieldValue = document.getElementById('username').value.trim();
+            const passFieldValue = document.getElementById('password').value;
+            const roomFieldValue = document.getElementById('room_id').value;
 
-            if(!myUsername || !pass) {
+            if(!userFieldValue || !passFieldValue) {
                 alert("Please fill in both fields!");
                 return;
             }
 
+            currentActiveUser = userFieldValue;
+
             socket.emit('join_game', {
-                username: myUsername,
-                password: pass,
-                room_id: room
+                username: userFieldValue,
+                password: passFieldValue,
+                room_id: roomFieldValue
             });
         }
 
         socket.on('user_status', function(data) {
-            // Hide login box, open game box
             document.getElementById('login-panel').classList.add('hidden');
             document.getElementById('game-board').classList.remove('hidden');
             
@@ -145,7 +144,7 @@
             if(data.is_admin) {
                 document.getElementById('admin-panel').classList.remove('hidden');
                 document.getElementById('btn-request-pull').classList.add('hidden');
-                document.getElementById('btn-pull-rope').classList.remove('hidden'); // Admin always has immediate access
+                document.getElementById('btn-pull-rope').classList.remove('hidden');
             } else {
                 document.getElementById('admin-panel').classList.add('hidden');
                 document.getElementById('btn-request-pull').classList.remove('hidden');
@@ -171,26 +170,22 @@
             socket.emit('trigger_roll', {});
             document.getElementById('btn-pull-rope').classList.add('hidden');
             
-            // If normal player, reset button view to request mode
             if(document.getElementById('admin-panel').classList.contains('hidden')) {
                 document.getElementById('btn-request-pull').classList.remove('hidden');
             }
         }
 
         socket.on('dice_rolling', function() {
-            // Start spinning instantly
             document.getElementById('dice1').className = "cube rolling";
             document.getElementById('dice2').className = "cube rolling";
             document.getElementById('dice3').className = "cube rolling";
         });
 
         socket.on('roll_results', function(data) {
-            // Remove the infinite rotation class loop
             document.getElementById('dice1').className = "cube";
             document.getElementById('dice2').className = "cube";
             document.getElementById('dice3').className = "cube";
             
-            // Snap the 3D transforms onto the true randomized result faces
             setTimeout(() => {
                 document.getElementById('dice1').style.transform = targetRotationMap[data.dice[0]];
                 document.getElementById('dice2').style.transform = targetRotationMap[data.dice[1]];
