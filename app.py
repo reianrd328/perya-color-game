@@ -4,7 +4,6 @@ import string
 import time
 import threading
 from flask import Flask, render_template, request
-# Change the flask_socketio import line at the top to this:
 from flask_socketio import SocketIO, emit, join_room
 import mysql.connector
 
@@ -38,24 +37,27 @@ pending_withdraws = []
 pull_requests = {}      
 
 def get_db_connection():
-    return mysql.connector.connect(
-        host=os.environ.get("DB_HOST", "localhost"),
-        port=int(os.environ.get("DB_PORT", 3306)),  
-        user=os.environ.get("DB_USER", "root"),
-        password=os.environ.get("DB_PASSWORD", ""),
-        database=os.environ.get("DB_NAME", "perya_color_game"),
-        ssl_ca="",
-        ssl_verify_cert=False
-    )
+    try:
+        return mysql.connector.connect(
+            host=os.environ.get("DB_HOST", "localhost"),
+            port=int(os.environ.get("DB_PORT", 3306)),  
+            user=os.environ.get("DB_USER", "root"),
+            password=os.environ.get("DB_PASSWORD", ""),
+            database=os.environ.get("DB_NAME", "perya_color_game"),
+            ssl_ca="",
+            ssl_verify_cert=False
+        )
+    except Exception as e:
+        print(f"❌ Database connection failed: {e}")
+        return None
 
- def init_db():
+def init_db():
     connection = get_db_connection()
     if connection is None:
         print("❌ Cannot initialize DB: Connection offline")
         return
     try:
         cursor = connection.cursor()
-        # Create users table if it doesn't exist
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -66,12 +68,10 @@ def get_db_connection():
             )
         """)
         
-        # Nested try block to check for the room_id column
         try:
             cursor.execute("ALTER TABLE users ADD COLUMN room_id VARCHAR(50) DEFAULT 'Server_1'")
             print("✅ Successfully injected missing 'room_id' column into users schema.")
         except Exception as col_err:
-            # If the column already exists, MySQL throws an error we can safely pass
             if "Duplicate column name" in str(col_err) or "1060" in str(col_err):
                 pass
             else:
@@ -85,22 +85,18 @@ def get_db_connection():
             cursor.close()
         if 'connection' in locals() and connection:
             connection.close()
-        conn.close()
-        print("✅ Database multi-tenant environment validated.")
-    except Exception as e:
-        print(f"⚠️ Table verification bypass: {e}")
 
 def update_admin_panels(room_id):
     try:
         conn = get_db_connection()
+        if not conn: return
         cursor = conn.cursor(dictionary=True)
         cursor.execute("SELECT SUM(coins) as total FROM users WHERE room_id = %s", (room_id,))
         res = cursor.fetchone()
         
-        # Decimal fix fully integrated here
         total_circulation = int(res['total']) if res and res['total'] else 0
         
-        cursor.execute("SELECT username, coins, total_earned, total_withdrawn, password, is_admin, active FROM users WHERE room_id = %s", (room_id,))
+        cursor.execute("SELECT username, coins, password, is_admin FROM users WHERE room_id = %s", (room_id,))
         all_users = cursor.fetchall()
         cursor.close()
         conn.close()
@@ -108,7 +104,7 @@ def update_admin_panels(room_id):
         print(f"🚨 Admin room state sync error: {e}")
         return
 
-    system_users = [{**u, "online": any(x['username'] == u['username'] for x in online_users.values()), "is_admin": bool(u['is_admin']), "active": bool(u['active'])} for u in all_users]
+    system_users = [{**u, "online": any(x['username'] == u['username'] for x in online_users.values()), "is_admin": bool(u['is_admin'])} for u in all_users]
     
     active_players = []
     pending_rolls = []
@@ -140,60 +136,58 @@ def index():
 def handle_join_game(data):
     username = data.get('username', '').strip()
     password = data.get('password', '')
-    room_id = data.get('room_id', 'Server_1')
+    room_id = data.get('room_id', 'Server_1').strip() 
 
-    # Hardcoded master system admin credentials bypass safety checks
-    if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
-        request.sid_room = room_id
-        join_room(room_id)
-        emit('user_status', {
-            'username': username,
-            'is_admin': True,
-            'room_id': room_id,
-            'coins': 0
-        })
-        return
+    if not username or not password:
+        return emit('login_failed', {"message": "Credentials missing."})
 
-    connection = get_db_connection()
-    if connection is None:
-        emit('login_failed', {'message': 'Database connection error. Admin has not turned on the instance.'})
-        return
-
-    try:
-        cursor = connection.cursor(dictionary=True)
-        
-        # LOOKUP MATCHES BOTH USER PROFILE AND ROOM ID SCOPE
-        cursor.execute(
-            "SELECT username, coins, room_id FROM users WHERE username = %s AND password = %s",
-            (username, password)
-        )
-        user = cursor.fetchone()
-
-        if user:
-            # ENFORCE ROOM RESTRICITON MATCHING
-            if user['room_id'] != room_id:
-                emit('login_failed', {
-                    'message': f'❌ Access Denied: Your profile is registered to {user["room_id"].replace("_", " ")}, not this table group.'
-                })
-                return
-
-            request.sid_room = room_id
+    if username == ADMIN_USERNAME:
+        if password == ADMIN_PASSWORD:
+            online_users[request.sid] = {"username": username, "room_id": room_id}
             join_room(room_id)
             
             emit('user_status', {
-                'username': user['username'],
-                'is_admin': False,
-                'room_id': user['room_id'],
-                'coins': int(user['coins'])
+                "username": username, "coins": 0,
+                "is_admin": True, "room_id": room_id
             })
+            update_admin_panels(room_id)
+            return
         else:
-            emit('login_failed', {'message': 'Invalid Username or Password profile configuration combination.'})
-            
-    except Exception as e:
-        emit('login_failed', {'message': f'Database lookup crash: {str(e)}'})
-    finally:
+            return emit('login_failed', {"message": "Invalid Administrator Password."})
+
+    conn = get_db_connection()
+    if not conn:
+        return emit('login_failed', {"message": "Database offline."})
+
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM users WHERE username = %s AND password = %s", (username, password))
+        user = cursor.fetchone()
         cursor.close()
-        connection.close()
+        conn.close()
+    except Exception as e:
+        return emit('login_failed', {"message": f"Database Lookup Error: {e}"})
+
+    if not user:
+        return emit('login_failed', {"message": "Invalid Username or Password."})
+
+    if user['room_id'] != room_id:
+        return emit('login_failed', {"message": f"❌ Access Denied: Registered to {user['room_id'].replace('_', ' ')} only."})
+
+    online_users[request.sid] = {"username": username, "room_id": room_id}
+    join_room(room_id)
+
+    if room_id not in table_bets:
+        table_bets[room_id] = {}
+    if username not in table_bets[room_id]:
+        table_bets[room_id][username] = {c: 0 for c in COLORS}
+
+    emit('user_status', {
+        "username": username, "coins": user['coins'],
+        "is_admin": False, "room_id": room_id
+    })
+    update_admin_panels(room_id)
+
 @socketio.on('request_pull')
 def handle_request_pull(data):
     sid_data = online_users.get(request.sid)
@@ -225,143 +219,39 @@ def handle_grant_permission(data):
                 
     update_admin_panels(room_id)
 
-@socketio.on('place_bet')
-def handle_place_bet(data):
+@socketio.on('create_player')
+def handle_create_player(data):
     sid_data = online_users.get(request.sid)
-    if not sid_data: return
+    if not sid_data: 
+        return emit('admin_error', {"message": "Session expired. Log back in."})
+        
     room_id = sid_data['room_id']
-    username = sid_data['username']
-    color = data.get('color')
-    amount = int(data.get('amount', 0))
+    username = data.get('username', '').strip()
+    coins = int(data.get('coins', 1000))
+    generated_password = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
 
-    if color not in COLORS or amount <= 0: return
+    if not username:
+        return emit('admin_error', {"message": "Username cannot be empty."})
+
+    conn = get_db_connection()
+    if not conn:
+        return emit('admin_error', {"message": "Database offline."})
 
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT coins FROM users WHERE username = %s", (username,))
-        user = cursor.fetchone()
-
-        if not user or user['coins'] < amount:
-            cursor.close()
-            conn.close()
-            return emit('bet_rejected', {"message": "Insufficient balance."})
-
-        new_balance = user['coins'] - amount
-        cursor.execute("UPDATE users SET coins = %s WHERE username = %s", (new_balance, username))
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO users (username, password, coins, is_admin, room_id) VALUES (%s, %s, %s, 0, %s)",
+            (username, generated_password, coins, room_id)
+        )
         conn.commit()
         cursor.close()
         conn.close()
-    except Exception: return
 
-    if room_id not in table_bets: table_bets[room_id] = {}
-    if username not in table_bets[room_id]: table_bets[room_id][username] = {c: 0 for c in COLORS}
-
-    table_bets[room_id][username][color] += amount
-    emit('bet_placed', {"username": username, "color": color, "color_total": table_bets[room_id][username][color], "coins": new_balance})
-    update_admin_panels(room_id)
-
-@socketio.on('trigger_roll')
-def handle_trigger_roll(data):
-    sid_data = online_users.get(request.sid)
-    if not sid_data: return
-    room_id = sid_data['room_id']
-
-    socketio.emit('dice_rolling', {}, to=room_id)
-    dice_results = [random.choice(COLORS) for _ in range(3)]
-    time.sleep(3)
-
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-    except Exception: return
-
-    payout_ledger = {}
-    room_bets = table_bets.get(room_id, {})
-    
-    for username, bets in room_bets.items():
-        total_won = 0
-        if sum(bets.values()) <= 0: continue
-
-        for color, amount in bets.items():
-            if amount <= 0: continue
-            matches = dice_results.count(color)
-            if matches > 0:
-                total_won += (amount * matches) + amount
-
-        if total_won > 0:
-            cursor.execute("SELECT coins, total_earned FROM users WHERE username = %s", (username,))
-            account = cursor.fetchone()
-            new_coins = account['coins'] + total_won
-            new_earned = account['total_earned'] + total_won
-            cursor.execute("UPDATE users SET coins = %s, total_earned = %s WHERE username = %s", (new_coins, new_earned, username))
-            payout_ledger[username] = total_won
-
-    conn.commit()
-    cursor.close()
-    conn.close()
-    if room_id in table_bets: table_bets[room_id].clear()
-
-    socketio.emit('roll_results', {"dice": dice_results, "payouts": payout_ledger}, to=room_id)
-    update_admin_panels(room_id)
-
-@socketio.on('create_player')
-def handle_create_player(data):
-    # Detect which room dashboard the admin is currently managing
-    room_id = getattr(request, 'sid_room', None) or data.get('room_id')
-    if not room_id:
-        # Fallback tracking if room context isn't implicitly stored in the socket session
-        for r_id, players in active_rooms.items():
-            if request.sid in players:
-                room_id = r_id
-                break
-
-    if not room_id:
-        emit('admin_error', {'message': 'Could not identify your current active room group.'})
-        return
-
-    username = data.get('username', '').strip()
-    starting_coins = data.get('coins', 1000)
-
-    if not username:
-        emit('admin_error', {'message': 'Username field cannot be left blank.'})
-        return
-
-    # Generate a simple 6-character random password string
-    password = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
-
-    connection = get_db_connection()
-    if connection is None:
-        emit('admin_error', {'message': 'Database connection is offline. Please Power On your Aiven database panel!'})
-        return
-
-    try:
-        cursor = connection.cursor(dictionary=True)
-        
-        # 1. Check if username is already taken INSIDE THIS SPECIFIC SERVER GROUP
-        cursor.execute(
-            "SELECT id FROM users WHERE username = %s AND room_id = %s", 
-            (username, room_id)
-        )
-        if cursor.fetchone():
-            emit('admin_error', {'message': f'Username "{username}" is already taken in this server room group.'})
-            return
-
-        # 2. Insert new user bound strictly to this server room ID
-        cursor.execute(
-            "INSERT INTO users (username, password, coins, room_id, is_admin) VALUES (%s, %s, %s, %s, 0)",
-            (username, password, starting_coins, room_id)
-        )
-        connection.commit()
-
-        # Emit successful output feedback to the dashboard UI frame
-        emit('player_created', {'username': username, 'password': password})
-        
+        emit('player_created', {"username": username, "password": generated_password, "coins": coins})
+        update_admin_panels(room_id)
     except Exception as e:
-        emit('admin_error', {'message': f'SQL Write Failure: {str(e)}'})
-    finally:
-        cursor.close()
-        connection.close()
+        emit('admin_error', {"message": f"Database write blocked: {e}"})
+
 @socketio.on('disconnect')
 def handle_disconnect():
     if request.sid in online_users:
@@ -369,8 +259,8 @@ def handle_disconnect():
         del online_users[request.sid]
         update_admin_panels(room_id)
 
-with app.app_context():
-    threading.Thread(target=init_db, daemon=True).start()
+# Database generation thread
+threading.Thread(target=init_db, daemon=True).start()
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)
