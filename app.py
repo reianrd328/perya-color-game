@@ -87,7 +87,7 @@ def update_admin_panels():
         cursor = conn.cursor(dictionary=True)
         cursor.execute("SELECT SUM(coins) as total FROM users")
         res = cursor.fetchone()
-        total_circulation = res['total'] if res and res['total'] else 0
+        total_circulation = int(res['total']) if res and res['total'] else 0
         
         cursor.execute("SELECT username, coins, total_earned, total_withdrawn, password, is_admin, active FROM users")
         all_users = cursor.fetchall()
