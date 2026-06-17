@@ -45,9 +45,9 @@ def get_db_connection():
         user=os.environ.get("DB_USER", "root"),
         password=os.environ.get("DB_PASSWORD", ""),
         database=os.environ.get("DB_NAME", "perya_color_game"),
-        ssl_mode="REQUIRED"  # Forces mysql-connector to use a secure connection to Aiven Cloud
+        ssl_ca="",             # Tells the connector to initialize SSL/TLS encryption
+        ssl_verify_cert=False  # Skips local CA file verification (required for cloud environments)
     )
-
 def init_db():
     """Validates structural tables safely without crashing web workers."""
     try:
