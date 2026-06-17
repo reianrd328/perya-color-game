@@ -2,6 +2,7 @@ import os
 import random
 import string
 import time
+import threading  # 1. Added right here at the top!
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit
 import mysql.connector
@@ -23,7 +24,7 @@ _load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get("SECRET_KEY", "perya_secret_key_9921!")
-# Force Flask-SocketIO to use gevent asynchronously, stopping the eventlet conflict
+# Force gevent mode explicitly to prevent conflicts
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 COLORS = ["red", "blue", "green", "yellow", "white", "pink"]
@@ -34,7 +35,7 @@ ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
 # Structural State Engines
 table_bets = {}  
 online_users = {}  
-pending_withdraws = []  # Tracks dynamic list requests seen in your UI layout
+pending_withdraws = []  
 
 def get_db_connection():
     """Establishes database connection with standard parameters and custom Aiven ports."""
@@ -128,7 +129,6 @@ def update_admin_panels():
             if staked > 0:
                 pending_rolls.append({"username": name, "amount": staked})
 
-    # Emit fully combined payload to sync admin dashboards seamlessly
     socketio.emit('admin_dashboard_update', {
         "users": system_users, 
         "total_coins": total_circulation,
@@ -149,7 +149,6 @@ def handle_join_game(data):
     if not username or not password:
         return emit('login_failed', {"message": "Credentials missing."})
 
-    # Direct Route Handling for Admin
     if username == ADMIN_USERNAME:
         if password == ADMIN_PASSWORD:
             online_users[request.sid] = username
@@ -319,7 +318,6 @@ def handle_withdrawal_request(data):
             conn.close()
             return emit('withdraw_result', {"success": False, "message": "Insufficient coins available."})
 
-        # Temporarily hold coins out of wallet during pending review state
         new_balance = user['coins'] - amount
         cursor.execute("UPDATE users SET coins = %s WHERE username = %s", (new_balance, username))
         conn.commit()
@@ -457,8 +455,9 @@ def handle_disconnect():
         del online_users[request.sid]
     update_admin_panels()
 
+# 2. Updated dynamic application background thread configuration right here:
 with app.app_context():
-    init_db()
+    threading.Thread(target=init_db, daemon=True).start()
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)
