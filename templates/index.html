@@ -2,20 +2,22 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Live Multi-Server Perya Game</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socketio/4.0.1/socketio.js"></script>
     <style>
-        body { background-color: #1a1a1a; color: #fff; font-family: sans-serif; text-align: center; }
-        .server-tray { margin: 15px; padding: 10px; background: #2b2b2b; border-radius: 8px; }
-        select, input, button { padding: 8px; margin: 5px; font-size: 14px; border-radius: 4px; border: none; }
-        button { background: #e1b12c; color: #000; font-weight: bold; cursor: pointer; }
+        body { background-color: #1a1a1a; color: #fff; font-family: sans-serif; text-align: center; padding: 20px; }
+        .panel { background: #222; max-width: 600px; margin: 20px auto; padding: 25px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        select, input, button { padding: 10px; margin: 8px; font-size: 15px; border-radius: 5px; border: none; width: 80%; max-width: 300px; box-sizing: border-box; }
+        button { background: #e1b12c; color: #000; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:hover { background: #fbc531; }
         
-        /* 🎲 3D DICE ANIMATION STYLES */
-        .dice-container { display: flex; justify-content: center; gap: 40px; margin: 30px auto; min-height: 120px; }
-        .cube { width: 80px; height: 80px; position: relative; transform-style: preserve-3d; transition: transform 3s cubic-bezier(0.2, 0.8, 0.3, 1); }
-        .face { position: absolute; width: 80px; height: 80px; border: 2px solid #000; border-radius: 10px; opacity: 0.9; }
+        /* 🎲 3D ANIMATED DICE SYSTEMS */
+        .dice-container { display: flex; justify-content: center; gap: 30px; margin: 30px auto; min-height: 120px; }
+        .cube { width: 80px; height: 80px; position: relative; transform-style: preserve-3d; transition: transform 2s cubic-bezier(0.2, 0.8, 0.3, 1); }
+        .face { position: absolute; width: 80px; height: 80px; border: 2px solid #000; border-radius: 12px; opacity: 0.95; }
         
-        /* Color Alignments for the faces */
+        /* Side Alignments Mapping colors to surfaces */
         .red { background: #ff2a2a; transform: rotateY(0deg) translateZ(40px); }
         .blue { background: #2a75ff; transform: rotateY(90deg) translateZ(40px); }
         .green { background: #2aff53; transform: rotateY(180deg) translateZ(40px); }
@@ -23,15 +25,17 @@
         .white { background: #ffffff; transform: rotateX(90deg) translateZ(40px); }
         .pink { background: #ff2ae2; transform: rotateX(-90deg) translateZ(40px); }
 
-        /* Animation classes triggering tumbling */
-        .rolling { animation: tumble 0.5s infinite linear; }
+        /* Animation class that runs during the 3-second backend wait */
+        .rolling { animation: tumble 0.4s infinite linear; }
         @keyframes tumble {
-            0% { transform: rotateX(0deg) rotateY(0deg); }
-            100% { transform: rotateX(360deg) rotateY(360deg); }
+            0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+            100% { transform: rotateX(360deg) rotateY(360deg) rotateZ(360deg); }
         }
 
-        .hidden { display: none; }
-        .panel { background: #222; max-width: 600px; margin: 20px auto; padding: 20px; border-radius: 10px; }
+        .hidden { display: none !important; }
+        hr { border: 0; height: 1px; background: #444; margin: 20px 0; }
+        #request-list div { background: #333; padding: 10px; margin: 5px 0; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; }
+        #request-list button { width: auto; padding: 5px 10px; margin: 0; font-size: 12px; background: #4cd137; color: white; }
     </style>
 </head>
 <body>
@@ -52,14 +56,15 @@
             <option value="Server_9">Sub-Server Admin #9 Group</option>
             <option value="Server_10">Sub-Server Admin #10 Group</option>
         </select><br>
-        <input type="text" id="username" placeholder="Username">
+        <input type="text" id="username" placeholder="Username"><br>
         <input type="password" id="password" placeholder="Password"><br>
-        <button onclick="connectToServer()">Login to Selected Table</button>
+        <button id="btn-login" onclick="connectToServer()">Login to Selected Table</button>
     </div>
 
-    <div id="game-board" class="hidden">
-        <h2 id="display-room">Connected Room: </h2>
-        <h3 id="display-user">Player: </h3>
+    <div id="game-board" class="panel hidden">
+        <h2 id="display-room" style="color: #e1b12c;">Connected Room: </h2>
+        <h3 id="display-user">Player: ---</h3>
+        <hr>
         
         <div class="dice-container">
             <div class="cube" id="dice1">
@@ -75,57 +80,89 @@
                 <div class="face yellow"></div><div class="face white"></div><div class="face pink"></div>
             </div>
         </div>
+        <hr>
 
         <button id="btn-request-pull" onclick="requestPull()">🙋‍♂️ Request to Pull Rope</button>
-        <button id="btn-pull-rope" class="hidden" style="background:#4cd137;" onclick="triggerRoll()">🔔 PULL THE ROPE NOW</button>
+        <button id="btn-pull-rope" class="hidden" style="background:#4cd137; color: #fff;" onclick="triggerRoll()">🔔 PULL THE ROPE NOW</button>
     </div>
 
-    <div id="admin-panel" class="panel hidden">
-        <h2>🛠️ Room Manager Control Deck</h2>
+    <div id="admin-panel" class="panel hidden" style="border: 2px solid #e1b12c;">
+        <h2 style="color: #e1b12c;">🛠️ Room Manager Control Deck</h2>
+        <p>Use this area to create accounts for players and authorize rope pull requests.</p>
+        <hr>
+        
         <div id="pull-requests-tray">
             <h3>Rope Pull Permission Requests:</h3>
             <div id="request-list">No pending requests.</div>
         </div>
         <hr>
+        
         <h3>Add User to Your Server Group:</h3>
-        <input type="text" id="new-user" placeholder="New Player Username">
-        <button onclick="createUser()">Add Player Profile</button>
-        <p id="creation-log" style="color:#4cd137;"></p>
+        <input type="text" id="new-user" placeholder="New Player Username"><br>
+        <button style="background: #4cd137; color: #fff;" onclick="createUser()">Add Player Profile</button>
+        <p id="creation-log" style="color:#4cd137; font-weight: bold;"></p>
     </div>
 
     <script>
         const socket = io();
         let myUsername = "";
-        let targetRotationMap = { 'red': 'rotateY(0deg)', 'blue': 'rotateY(-90deg)', 'green': 'rotateY(-180deg)', 'yellow': 'rotateY(90deg)', 'white': 'rotateX(-90deg)', 'pink': 'rotateX(90deg)' };
+        
+        // Maps face orientations to colors perfectly
+        const targetRotationMap = { 
+            'red': 'rotateY(0deg) rotateX(0deg)', 
+            'blue': 'rotateY(-90deg) rotateX(0deg)', 
+            'green': 'rotateY(-180deg) rotateX(0deg)', 
+            'yellow': 'rotateY(90deg) rotateX(0deg)', 
+            'white': 'rotateX(-90deg) rotateY(0deg)', 
+            'pink': 'rotateX(90deg) rotateY(0deg)' 
+        };
 
         function connectToServer() {
-            myUsername = document.getElementById('username').value;
+            myUsername = document.getElementById('username').value.trim();
+            const pass = document.getElementById('password').value;
+            const room = document.getElementById('room_id').value;
+
+            if(!myUsername || !pass) {
+                alert("Please fill in both fields!");
+                return;
+            }
+
             socket.emit('join_game', {
                 username: myUsername,
-                password: document.getElementById('password').value,
-                room_id: document.getElementById('room_id').value
+                password: pass,
+                room_id: room
             });
         }
 
-       socket.on('admin_dashboard_update', function(data) {
-    if (data && data.pull_requests) {
-        let listHtml = "";
-        data.pull_requests.forEach(user => {
-            listHtml += `<div style="margin:5px;">👤 ${user} <button onclick="grantPermission('${user}')">Approve Pull</button></div>`;
+        socket.on('user_status', function(data) {
+            // Hide login box, open game box
+            document.getElementById('login-panel').classList.add('hidden');
+            document.getElementById('game-board').classList.remove('hidden');
+            
+            document.getElementById('display-room').innerText = "Connected Room: " + data.room_id.replace("_", " ");
+            document.getElementById('display-user').innerText = `User: ${data.username} | Balance: 💰 ${data.coins} Coins`;
+            
+            if(data.is_admin) {
+                document.getElementById('admin-panel').classList.remove('hidden');
+                document.getElementById('btn-request-pull').classList.add('hidden');
+                document.getElementById('btn-pull-rope').classList.remove('hidden'); // Admin always has immediate access
+            } else {
+                document.getElementById('admin-panel').classList.add('hidden');
+                document.getElementById('btn-request-pull').classList.remove('hidden');
+                document.getElementById('btn-pull-rope').classList.add('hidden');
+            }
         });
-        const tray = document.getElementById('request-list');
-        if(tray) tray.innerHTML = listHtml || "No pending requests.";
-    }
-});
 
         function requestPull() {
             socket.emit('request_pull', {});
         }
 
-        socket.on('pull_requested_status', data => alert(data.message));
+        socket.on('pull_requested_status', function(data) {
+            alert(data.message);
+        });
         
         socket.on('pull_permission_granted', function() {
-            alert("🎉 The Admin has approved your request! You have access to pull the rope once.");
+            alert("🎉 The Admin has approved your request! Click the green button to spin the dice!");
             document.getElementById('btn-request-pull').classList.add('hidden');
             document.getElementById('btn-pull-rope').classList.remove('hidden');
         });
@@ -133,39 +170,43 @@
         function triggerRoll() {
             socket.emit('trigger_roll', {});
             document.getElementById('btn-pull-rope').classList.add('hidden');
+            
+            // If normal player, reset button view to request mode
             if(document.getElementById('admin-panel').classList.contains('hidden')) {
                 document.getElementById('btn-request-pull').classList.remove('hidden');
             }
         }
 
         socket.on('dice_rolling', function() {
-            // Apply infinite tumble CSS classes instantly to initiate spin loop animation
+            // Start spinning instantly
             document.getElementById('dice1').className = "cube rolling";
             document.getElementById('dice2').className = "cube rolling";
             document.getElementById('dice3').className = "cube rolling";
         });
 
         socket.on('roll_results', function(data) {
-            // Stop the spinning motion loop
+            // Remove the infinite rotation class loop
             document.getElementById('dice1').className = "cube";
             document.getElementById('dice2').className = "cube";
             document.getElementById('dice3').className = "cube";
             
-            // Apply 3D matrix transforms to land exactly on the correct side color
+            // Snap the 3D transforms onto the true randomized result faces
             setTimeout(() => {
                 document.getElementById('dice1').style.transform = targetRotationMap[data.dice[0]];
                 document.getElementById('dice2').style.transform = targetRotationMap[data.dice[1]];
                 document.getElementById('dice3').style.transform = targetRotationMap[data.dice[2]];
             }, 50);
 
-            setTimeout(() => { alert("Dice result: " + data.dice.join(" | ")); }, 1000);
+            setTimeout(() => { 
+                alert("🎰 Dice Result: " + data.dice.join(" | ").toUpperCase()); 
+            }, 1200);
         });
 
         socket.on('admin_dashboard_update', function(data) {
-            if(data.pull_requests) {
+            if(data && data.pull_requests) {
                 let listHtml = "";
                 data.pull_requests.forEach(user => {
-                    listHtml += `<div style="margin:5px;">👤 ${user} <button onclick="grantPermission('${user}')">Approve Pull</button></div>`;
+                    listHtml += `<div><span>👤 <b>${user}</b> wants to pull</span> <button onclick="grantPermission('${user}')">Approve</button></div>`;
                 });
                 document.getElementById('request-list').innerHTML = listHtml || "No pending requests.";
             }
@@ -176,14 +217,19 @@
         }
 
         function createUser() {
-            socket.emit('create_player', { username: document.getElementById('new-user').value, coins: 5000, is_admin: false });
+            const nameInput = document.getElementById('new-user').value.trim();
+            if(!nameInput) return alert("Enter a username!");
+            socket.emit('create_player', { username: nameInput, coins: 1000 });
+            document.getElementById('new-user').value = "";
         }
 
         socket.on('player_created', function(data) {
-            document.getElementById('creation-log').innerText = `Created Player Profile -> User: ${data.username} | Temporary Pass: ${data.password}`;
+            document.getElementById('creation-log').innerHTML = `✅ Profile Added!<br>User: <code>${data.username}</code><br>Pass: <code>${data.password}</code>`;
         });
         
-        socket.on('login_failed', data => alert(data.message));
+        socket.on('login_failed', function(data) {
+            alert(data.message);
+        });
     </script>
 </body>
 </html>
