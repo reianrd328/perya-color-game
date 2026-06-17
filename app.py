@@ -2,7 +2,7 @@ import os
 import random
 import string
 import time
-import threading  # 1. Added right here at the top!
+import threading
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit
 import mysql.connector
@@ -45,7 +45,7 @@ def get_db_connection():
         user=os.environ.get("DB_USER", "root"),
         password=os.environ.get("DB_PASSWORD", ""),
         database=os.environ.get("DB_NAME", "perya_color_game"),
-        ssl_mode="REQUIRED"  # Forces mysql-connector to use a secure connection to Aiven
+        ssl_mode="REQUIRED"  # Forces mysql-connector to use a secure connection to Aiven Cloud
     )
 
 def init_db():
@@ -455,7 +455,6 @@ def handle_disconnect():
         del online_users[request.sid]
     update_admin_panels()
 
-# 2. Updated dynamic application background thread configuration right here:
 with app.app_context():
     threading.Thread(target=init_db, daemon=True).start()
 
