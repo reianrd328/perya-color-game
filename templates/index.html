@@ -4,50 +4,111 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Live Multi-Server Perya Game</title>
-    <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <style>
-        /* Dice Spinning Keyframe Animation */
-       @keyframes diceSpin {
-    0% { transform: rotate(0deg) scale(1); }
-    25% { transform: rotate(-15deg) scale(1.05); }
-    50% { transform: rotate(15deg) scale(1.05); }
-    75% { transform: rotate(-10deg) scale(1.02); }
-    100% { transform: rotate(0deg) scale(1); }
-}
-
-.spinning {
-    animation: diceSpin 0.15s linear infinite !important;
-    border: 3px dashed #ffc107 !important;
-    box-shadow: 0 0 15px #ffc107 !important;
-}
+        body { 
+            background-color: #121212; 
+            color: #ffffff; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            text-align: center; 
+            padding: 20px; 
+            margin: 0;
+        }
+        h1 { margin-bottom: 30px; font-weight: 700; text-shadow: 0 0 10px rgba(225, 177, 44, 0.3); }
+        .panel { 
+            background: #1e1e1e; 
+            max-width: 700px; 
+            margin: 20px auto; 
+            padding: 30px; 
+            border-radius: 12px; 
+            box-shadow: 0 8px 24px rgba(0,0,0,0.6); 
+        }
+        select, input, button { 
+            padding: 12px; 
+            margin: 10px auto; 
+            font-size: 15px; 
+            border-radius: 6px; 
+            border: 1px solid #333; 
+            width: 90%; 
+            max-width: 340px; 
+            box-sizing: border-box; 
+            background: #252525;
+            color: #fff;
+        }
+        input:focus, select:focus { outline: 1px solid #e1b12c; }
+        button { 
+            background: #e1b12c; 
+            color: #000; 
+            font-weight: bold; 
+            cursor: pointer; 
+            transition: all 0.2s ease; 
+            border: none;
+        }
+        button:hover { background: #fbc531; transform: translateY(-1px); }
+        button:disabled { background: #555 !important; color: #aaa !important; cursor: not-allowed; transform: none; }
         
-        body { background-color: #1a1a1a; color: #fff; font-family: sans-serif; text-align: center; padding: 20px; }
-        .panel { background: #222; max-width: 600px; margin: 20px auto; padding: 25px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
-        select, input, button { padding: 10px; margin: 8px; font-size: 15px; border-radius: 5px; border: none; width: 80%; max-width: 300px; box-sizing: border-box; }
-        button { background: #e1b12c; color: #000; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        button:hover { background: #fbc531; }
+        /* 🎰 3D DICE ENGINE ANIMATIONS */
+        .dice-container { 
+            display: flex; 
+            justify-content: center; 
+            gap: 40px; 
+            margin: 40px auto; 
+            perspective: 600px;
+            min-height: 120px; 
+        }
+        .cube { 
+            width: 80px; 
+            height: 80px; 
+            position: relative; 
+            transform-style: preserve-3d; 
+            transform: rotateX(-20deg) rotateY(25deg);
+            transition: transform 1.5s cubic-bezier(0.25, 1, 0.5, 1); 
+        }
+        .face { 
+            position: absolute; 
+            width: 80px; 
+            height: 80px; 
+            border: 2px solid rgba(0, 0, 0, 0.4); 
+            border-radius: 14px; 
+            box-sizing: border-box;
+        }
         
-        .dice-container { display: flex; justify-content: center; gap: 30px; margin: 30px auto; min-height: 120px; }
-        .cube { width: 80px; height: 80px; position: relative; transform-style: preserve-3d; transition: transform 2s cubic-bezier(0.2, 0.8, 0.3, 1); }
-        .face { position: absolute; width: 80px; height: 80px; border: 2px solid #000; border-radius: 12px; opacity: 0.95; }
-        
-        .red { background: #ff2a2a; transform: rotateY(0deg) translateZ(40px); }
-        .blue { background: #2a75ff; transform: rotateY(90deg) translateZ(40px); }
-        .green { background: #2aff53; transform: rotateY(180deg) translateZ(40px); }
+        /* Coordinate Positions for Faces */
+        .red    { background: #ff2a2a; transform: rotateY(0deg) translateZ(40px); }
+        .blue   { background: #2a75ff; transform: rotateY(90deg) translateZ(40px); }
+        .green  { background: #2aff53; transform: rotateY(180deg) translateZ(40px); }
         .yellow { background: #ffeb2a; transform: rotateY(-90deg) translateZ(40px); }
-        .white { background: #ffffff; transform: rotateX(90deg) translateZ(40px); }
-        .pink { background: #ff2ae2; transform: rotateX(-90deg) translateZ(40px); }
+        .white  { background: #ffffff; transform: rotateX(90deg) translateZ(40px); }
+        .pink   { background: #ff2ae2; transform: rotateX(-90deg) translateZ(40px); }
 
-        .rolling { animation: tumble 0.4s infinite linear; }
+        /* Tumble State Wrapper Class triggered via JS */
+        .spinning { animation: tumble 0.2s infinite linear; }
         @keyframes tumble {
             0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
             100% { transform: rotateX(360deg) rotateY(360deg) rotateZ(360deg); }
         }
 
         .hidden { display: none !important; }
-        hr { border: 0; height: 1px; background: #444; margin: 20px 0; }
-        #request-list div { background: #333; padding: 10px; margin: 5px 0; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; }
-        #request-list button { width: auto; padding: 5px 10px; margin: 0; font-size: 12px; background: #4cd137; color: white; }
+        hr { border: 0; height: 1px; background: #333; margin: 25px 0; }
+        
+        /* Lists & Table Elements */
+        .tray-section { background: #252525; padding: 15px; border-radius: 8px; margin: 15px 0; text-align: left; }
+        .tray-item { 
+            background: #2d2d2d; 
+            padding: 12px; 
+            margin: 8px 0; 
+            border-radius: 6px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            border-left: 4px solid #e1b12c;
+        }
+        .tray-item button { width: auto; padding: 6px 14px; margin: 0; font-size: 13px; background: #4cd137; color: white; }
+        .tray-item button.decline-btn { background: #dcdde1; color: #000; margin-left: 5px;}
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; text-align: left; }
+        th, td { padding: 10px; border-bottom: 1px solid #333; font-size: 14px; }
+        th { color: #e1b12c; }
     </style>
 </head>
 <body>
@@ -62,15 +123,21 @@
             <option value="Server_3">Sub-Server Admin #3 Group</option>
             <option value="Server_4">Sub-Server Admin #4 Group</option>
             <option value="Server_5">Sub-Server Admin #5 Group</option>
+            <option value="Server_6">Sub-Server Admin #6 Group</option>
+            <option value="Server_7">Sub-Server Admin #7 Group</option>
+            <option value="Server_8">Sub-Server Admin #8 Group</option>
+            <option value="Server_9">Sub-Server Admin #9 Group</option>
+            <option value="Server_10">Sub-Server Admin #10 Group</option>
         </select><br>
         <input type="text" id="username" placeholder="Username"><br>
         <input type="password" id="password" placeholder="Password"><br>
-        <button type="button" class="btn btn-warning" onclick="submitLogin()">Login to Selected Table</button>
+        <button type="button" onclick="submitLogin()">Login to Selected Table</button>
     </div>
 
     <div id="game-board" class="panel hidden">
         <h2 id="display-room" style="color: #e1b12c;">Connected Room: </h2>
         <h3 id="display-user">Player: ---</h3>
+        <h3 style="color: #4cd137;">Current Balance: <span id="playerBalanceDisplay">0</span> Coins</h3>
         <hr>
         
         <div class="dice-container">
@@ -90,185 +157,247 @@
         <hr>
 
         <button id="btn-request-pull" onclick="requestPull()">🙋‍♂️ Request to Pull Rope</button>
-        <button id="btn-pull-rope" class="hidden" style="background:#4cd137; color: #fff;" onclick="triggerRoll()">🔔 PULL THE ROPE NOW</button>
+        
+        <div class="tray-section" style="margin-top: 20px;">
+            <h4>Request Vault Payout (Withdraw)</h4>
+            <input type="number" id="withdraw-amount" style="width:60%;" placeholder="Amount to withdraw" min="1">
+            <button type="button" style="width:30%; background:#ff4757; color:#fff;" onclick="requestWithdraw()">Withdraw</button>
+        </div>
     </div>
 
     <div id="admin-panel" class="panel hidden" style="border: 2px solid #e1b12c;">
-        <h2 style="color: #e1b12c;">🛠️ Room Manager Control Deck</h2>
-        <p>Use this area to create accounts for players and authorize rope pull requests.</p>
+        <h2 style="color: #e1b12c;">🛠️ Room Manager Control Deck (<span id="admin-room-title">All</span>)</h2>
+        <p>System-wide parameters pool context updates dynamically.</p>
+        <h4 style="color: #4cd137;">Total System Liquidity: <span id="totalCirculationDisplay">0</span> Coins</h4>
         <hr>
         
-        <div id="pull-requests-tray">
+        <div class="tray-section">
             <h3>Rope Pull Permission Requests:</h3>
             <div id="request-list">No pending requests.</div>
         </div>
+
+        <div class="tray-section">
+            <h3>Pending Withdraw Requests:</h3>
+            <div id="withdraw-list">No pending payouts.</div>
+        </div>
         <hr>
         
-        <h3>Add User to Your Server Group:</h3>
-        <input type="text" id="new-user" placeholder="New Player Username"><br>
-        <button style="background: #4cd137; color: #fff;" onclick="createUser()">Add Player Profile</button>
-        <p id="creation-log" style="color:#4cd137; font-weight: bold;"></p>
+        <div class="tray-section">
+            <h3>Add User to Your Server Group:</h3>
+            <input type="text" id="new-user" placeholder="New Player Username"><br>
+            <button style="background: #4cd137; color: #fff; max-width:340px; width:90%; display:block; margin:10px auto;" onclick="createUser()">Add Player Profile</button>
+        </div>
+
+        <div class="tray-section">
+            <h3>Registered Room Accounts Pool</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Password</th>
+                        <th>Balance</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="allUsersTableBody"></tbody>
+            </table>
+        </div>
     </div>
 
     <script>
-        // Check if Socket.IO successfully attached to the window instance
-        if (typeof io === 'undefined') {
-            alert("⚠️ CDN Network Blocked. Falling back to local socket routing definitions.");
-            document.write('<script src="/static/socket.io.js"><\/script>');
+        const socket = io();
+
+        let currentUsername = "";
+        let currentRoomId = "Server_1"; 
+        let isAdmin = false;
+
+        // Static Rotation Configuration Matrix mapping string values to explicit rotation transforms
+        const faceRotations = {
+            "red":    {x: 0,    y: 0},
+            "blue":   {x: 0,    y: -90},
+            "green":  {x: 0,    y: 180},
+            "yellow": {x: 0,    y: 90},
+            "white":  {x: -90,  y: 0},
+            "pink":   {x: 90,   y: 0}
+        };
+
+        function submitLogin() {
+            const userField = document.getElementById('username').value.trim();
+            const passField = document.getElementById('password').value;
+            const roomSelect = document.getElementById('room_id').value;
+
+            if (!userField || !passField) {
+                alert("Please enter both username and password.");
+                return;
+            }
+
+            socket.emit('join_game', {
+                username: userField,
+                password: passField,
+                room_id: roomSelect
+            });
         }
 
+        socket.on('user_status', function(data) {
+            currentUsername = data.username;
+            isAdmin = data.is_admin;
+            currentRoomId = data.room_id;
 
-        // Add this right near your other event listeners in index.html
-    const loginButton = document.querySelector('button.btn-warning') || document.getElementById('loginToTableButton');
-    if (loginButton) {
-    loginButton.addEventListener('click', submitLogin);
-    }
-       // Establish Socket.IO connection
-const socket = io();
-
-// Tracking variables for the client
-let currentUsername = "";
-let currentRoomId = "Server_1"; 
-let isAdmin = false;
-
-// Elements
-const loginForm = document.getElementById('loginForm');
-const gameBoard = document.getElementById('gameBoard');
-const adminPanel = document.getElementById('adminPanel');
-const pullRopeButton = document.getElementById('pullRopeButton');
-const addPlayerButton = document.getElementById('addPlayerButton');
-const usernameInput = document.getElementById('usernameInput');
-
-// ==========================================
-// 1. DICE ANIMATION & ROLL BUTTON HANDLING
-// ==========================================
-
-// Call this function when a roll/pull sequence begins
-function triggerDiceRollAnimation() {
-    // DO NOT HIDE THE BUTTON. Disable it and make it transparent instead.
-    if (pullRopeButton) {
-        pullRopeButton.disabled = true;
-        pullRopeButton.style.opacity = "0.6";
-        pullRopeButton.innerText = "⏳ Rolling Dice...";
-    }
-
-    // Add the CSS spinning animation class to all three dice boxes
-    const diceBoxes = document.querySelectorAll('.dice-box');
-    diceBoxes.forEach(box => {
-        box.classList.add('spinning');
-    });
-}
-
-// Call this function when the backend responds with final results
-function stopDiceRollAnimation() {
-    // Remove the CSS spinning class from all dice boxes
-    const diceBoxes = document.querySelectorAll('.dice-box');
-    diceBoxes.forEach(box => {
-        box.classList.remove('spinning');
-    });
-
-    // Restore the Pull button state completely
-    if (pullRopeButton) {
-        pullRopeButton.disabled = false;
-        pullRopeButton.style.opacity = "1";
-        pullRopeButton.innerText = "🔗 PULL THE ROPE";
-    }
-}
-
-// ==========================================
-// 2. SOCKET.IO OUTBOUND EMITTERS
-// ==========================================
-
-// Handle Login submission
-function submitLogin() {
-    const userField = document.getElementById('loginUsername').value.trim();
-    const passField = document.getElementById('loginPassword').value;
-    const roomSelect = document.getElementById('serverRoomSelect');
-    
-    if (roomSelect) {
-        currentRoomId = roomSelect.value;
-    }
-
-    if (!userField || !passField) {
-        alert("Please enter both username and password.");
-        return;
-    }
-
-    socket.emit('join_game', {
-        username: userField,
-        password: passField,
-        room_id: currentRoomId
-    });
-}
-
-// Handle Admin adding a player profile
-if (addPlayerButton) {
-    addPlayerButton.addEventListener('click', function() {
-        const newPlayerName = document.getElementById('newPlayerUsername').value.trim();
-        if (!newPlayerName) {
-            alert("Please type a username first.");
-            return;
-        }
-
-        // Emit to server along with the current server room scope context
-        socket.emit('create_player', {
-            username: newPlayerName,
-            coins: 1000,
-            room_id: currentRoomId
+            document.getElementById('login-panel').classList.add('hidden');
+            
+            if (isAdmin) {
+                document.getElementById('admin-panel').classList.remove('hidden');
+                document.getElementById('admin-room-title').innerText = currentRoomId.replace('_', ' ');
+            } else {
+                document.getElementById('game-board').classList.remove('hidden');
+                document.getElementById('display-room').innerText = "Connected Room: " + currentRoomId.replace('_', ' ');
+                document.getElementById('display-user').innerText = "Player: " + currentUsername;
+                document.getElementById('playerBalanceDisplay').innerText = data.coins;
+            }
         });
-    });
-}
 
-// Handle manual trigger click for pulling the rope
-if (pullRopeButton) {
-    pullRopeButton.addEventListener('click', function() {
-        triggerDiceRollAnimation(); // Instantly spin frontend boxes
-        socket.emit('request_pull');
-    });
-}
+        socket.on('login_failed', function(data) {
+            alert(data.message);
+        });
 
-// ==========================================
-// 3. SOCKET.IO INBOUND LISTENERS
-// ==========================================
+        /* 🎰 ENGINE INTERACTION RUNTIMES */
+        function requestPull() {
+            const pullBtn = document.getElementById('btn-request-pull');
+            pullBtn.disabled = true;
+            pullBtn.innerText = "⏳ Awaiting Manager Approval...";
+            socket.emit('request_pull');
+        }
 
-// User status response after trying to log in
-socket.on('user_status', function(data) {
-    currentUsername = data.username;
-    isAdmin = data.is_admin;
-    currentRoomId = data.room_id;
+        function requestWithdraw() {
+            const amt = parseInt(document.getElementById('withdraw-amount').value);
+            if (!amt || amt <= 0) {
+                alert("Enter a valid withdrawal calculation volume.");
+                return;
+            }
+            socket.emit('request_withdraw', { amount: amt });
+            document.getElementById('withdraw-amount').value = "";
+        }
 
-    // Hide login layer, reveal operational dashboard frames
-    if (loginForm) loginForm.style.display = 'none';
-    
-    if (isAdmin) {
-        if (adminPanel) adminPanel.style.display = 'block';
-        if (gameBoard) gameBoard.style.display = 'none';
-        document.getElementById('connectedRoomTitle').innerText = "Connected Room: " + currentRoomId.replace('_', ' ');
-    } else {
-        if (adminPanel) adminPanel.style.display = 'none';
-        if (gameBoard) gameBoard.style.display = 'block';
-        document.getElementById('playerBalanceDisplay').innerText = data.coins + " Coins";
-    }
-});
+        socket.on('pull_permission_granted', function() {
+            // Button is kept visible but altered systematically
+            const pullBtn = document.getElementById('btn-request-pull');
+            if(pullBtn) {
+                pullBtn.innerText = "🎲 DICE ROLLING ACTIVE...";
+                pullBtn.style.background = "#4cd137";
+            }
+            
+            // Activate structural tumble CSS loops on 3D elements
+            document.getElementById('dice1').classList.add('spinning');
+            document.getElementById('dice2').classList.add('spinning');
+            document.getElementById('dice3').classList.add('spinning');
+        });
 
-// Capture failure triggers on connection attempts
-socket.on('login_failed', function(data) {
-    alert(data.message);
-});
+        socket.on('roll_result', function(data) {
+            // Remove the spinning class
+            document.getElementById('dice1').classList.remove('spinning');
+            document.getElementById('dice2').classList.remove('spinning');
+            document.getElementById('dice3').classList.remove('spinning');
 
-// Capture backend admin-specific notification alerts
-socket.on('admin_error', function(data) {
-    alert("Database Error: " + data.message);
-});
+            // Apply precise 3D face mappings matching backend array sequence calculation results
+            if (data.dice && data.dice.length === 3) {
+                applyCubeFace('dice1', data.dice[0]);
+                applyCubeFace('dice2', data.dice[1]);
+                applyCubeFace('dice3', data.dice[2]);
+            }
 
-// Catch validation details when a user profile is saved successfully
-socket.on('player_created', function(data) {
-    alert(`🎉 Success!\nCreated profile: ${data.username}\nPass: ${data.password}`);
-    document.getElementById('newPlayerUsername').value = ""; // Clear input field
-});
+            // Reset request button status back to normal base operational status without hiding it
+            const pullBtn = document.getElementById('btn-request-pull');
+            if (pullBtn) {
+                pullBtn.disabled = false;
+                pullBtn.style.background = "#e1b12c";
+                pullBtn.innerText = "🙋‍♂️ Request to Pull Rope";
+            }
 
-// Real-time synchronization payload sent down by Python update_admin_panels engine
-socket.on('admin_dashboard_update', function
+            // Sync structural balance values
+            if (!isAdmin && data.balances && data.balances[currentUsername] !== undefined) {
+                document.getElementById('playerBalanceDisplay').innerText = data.balances[currentUsername];
+            }
+        });
+
+        function applyCubeFace(cubeId, landedColor) {
+            const targetCube = document.getElementById(cubeId);
+            const coordinates = faceRotations[landedColor];
+            if (targetCube && coordinates) {
+                // Apply spatial matrix positioning layout modifications mapping calculated face to perspective center
+                targetCube.style.transform = `rotateX(${coordinates.x}deg) rotateY(${coordinates.y}deg)`;
+            }
+        }
+
+        /* 🛠️ ADMINISTRATIVE BACKOFFICE BINDINGS */
+        function createUser() {
+            const usernameInput = document.getElementById('new-user').value.trim();
+            if(!usernameInput) return alert("Username required.");
+            socket.emit('create_player', { username: usernameInput, coins: 1000 });
+        }
+
+        socket.on('player_created', function(data) {
+            alert(`🎉 User Profile Built Successfully!\nUser: ${data.username}\nTemp Token: ${data.password}`);
+            document.getElementById('new-user').value = "";
+        });
+
+        socket.on('admin_error', function(data) { alert("Execution Fault: " + data.message); });
+
+        function approvePull(targetPlayer) { socket.emit('grant_pull_permission', { username: targetPlayer }); }
+        function approveWithdraw(txnId) { socket.emit('approve_withdraw', { tx_id: txnId }); }
+        function rejectWithdraw(txnId) { socket.emit('reject_withdraw', { tx_id: txnId }); }
+
+        socket.on('admin_dashboard_update', function(data) {
+            if (!isAdmin) return;
+
+            document.getElementById('totalCirculationDisplay').innerText = data.total_coins;
+
+            // Render Pull Permission Queue Tray Elements
+            const reqList = document.getElementById('request-list');
+            if (data.pull_requests.length === 0) {
+                reqList.innerText = "No pending requests.";
+            } else {
+                reqList.innerHTML = "";
+                data.pull_requests.forEach(user => {
+                    reqList.innerHTML += `
+                        <div class="tray-item">
+                            <span>User <strong>${user}</strong> requested a dice spin sequence.</span>
+                            <button onclick="approvePull('${user}')">Approve & Roll</button>
+                        </div>`;
+                });
+            }
+
+            // Render Withdrawal Claims Queue Tray Elements
+            const wdList = document.getElementById('withdraw-list');
+            if (data.pending_withdraws.length === 0) {
+                wdList.innerText = "No pending payouts.";
+            } else {
+                wdList.innerHTML = "";
+                data.pending_withdraws.forEach(tx => {
+                    wdList.innerHTML += `
+                        <div class="tray-item">
+                            <span><strong>${tx.username}</strong> requested payout of 💰 ${tx.amount} coins</span>
+                            <div>
+                                <button onclick="approveWithdraw('${tx.id}')">Approve</button>
+                                <button class="decline-btn" style="background:#ff4757;" onclick="rejectWithdraw('${tx.id}')">Reject</button>
+                            </div>
+                        </div>`;
+                });
+            }
+
+            // Render Entire Connected Sub-Tenant Users Master Ledger Table
+            const tbody = document.getElementById('allUsersTableBody');
+            tbody.innerHTML = "";
+            data.users.forEach(user => {
+                if(user.is_admin) return;
+                tbody.innerHTML += `
+                    <tr>
+                        <td><strong>${user.username}</strong></td>
+                        <td><code>${user.password}</code></td>
+                        <td>💰 ${user.coins}</td>
+                        <td><span style="color:${user.online ? '#4cd137' : '#7f8c8d'}">${user.online ? '● ONLINE' : '○ OFFLINE'}</span></td>
+                    </tr>`;
+            });
+        });
     </script>
 </body>
 </html>
