@@ -117,6 +117,12 @@
             document.write('<script src="/static/socket.io.js"><\/script>');
         }
 
+
+        // Add this right near your other event listeners in index.html
+    const loginButton = document.querySelector('button.btn-warning') || document.getElementById('loginToTableButton');
+    if (loginButton) {
+    loginButton.addEventListener('click', submitLogin);
+    }
        // Establish Socket.IO connection
 const socket = io();
 
