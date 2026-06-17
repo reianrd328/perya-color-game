@@ -66,7 +66,7 @@ def init_db():
             )
         """)
         
-        # AUTOMATICALLY ADD THE MISSING room_id COLUMN IF IT'S NOT THERE
+        # Nested try block to check for the room_id column
         try:
             cursor.execute("ALTER TABLE users ADD COLUMN room_id VARCHAR(50) DEFAULT 'Server_1'")
             print("✅ Successfully injected missing 'room_id' column into users schema.")
@@ -81,8 +81,10 @@ def init_db():
     except Exception as e:
         print(f"❌ Database Initialization Error: {e}")
     finally:
-        cursor.close()
-        connection.close()
+        if 'cursor' in locals() and cursor:
+            cursor.close()
+        if 'connection' in locals() and connection:
+            connection.close()
         conn.close()
         print("✅ Database multi-tenant environment validated.")
     except Exception as e:
