@@ -7,18 +7,19 @@
     <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js"></script>
     <style>
         /* Dice Spinning Keyframe Animation */
-        @keyframes diceSpin {
-        0% { transform: rotate(0deg) scale(1); }
-        25% { transform: rotate(-15deg) scale(1.1); }
-        50% { transform: rotate(15deg) scale(1.1); }
-        75% { transform: rotate(-10deg) scale(1.05); }
-        100% { transform: rotate(0deg) scale(1); }
-        }
+       @keyframes diceSpin {
+    0% { transform: rotate(0deg) scale(1); }
+    25% { transform: rotate(-15deg) scale(1.05); }
+    50% { transform: rotate(15deg) scale(1.05); }
+    75% { transform: rotate(-10deg) scale(1.02); }
+    100% { transform: rotate(0deg) scale(1); }
+}
 
-    .spinning {
-        animation: diceSpin 0.15s linear infinite;
-        border: 3px dashed #ffc107 !important;
-        }
+.spinning {
+    animation: diceSpin 0.15s linear infinite !important;
+    border: 3px dashed #ffc107 !important;
+    box-shadow: 0 0 15px #ffc107 !important;
+}
         
         body { background-color: #1a1a1a; color: #fff; font-family: sans-serif; text-align: center; padding: 20px; }
         .panel { background: #222; max-width: 600px; margin: 20px auto; padding: 25px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
