@@ -3,75 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Multi-Server Perya Game Hub</title>
+    <title>Live Multi-Server Perya Game</title>
     <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js"></script>
     <style>
         :root {
-            --bg-color: #121212;
-            --panel-bg: #1e1e1e;
-            --text-color: #ffffff;
-            --border-color: #333333;
+            --bg-color: #1a1a1a;
+            --panel-bg: #222;
+            --text-color: #fff;
             --accent-color: #e1b12c;
+            --border-color: #444;
         }
-
         [data-theme="light"] {
             --bg-color: #f5f6fa;
             --panel-bg: #ffffff;
             --text-color: #2f3640;
-            --border-color: #dcdde1;
             --accent-color: #dcdde1;
+            --border-color: #dcdde1;
         }
-
-        body { 
-            background-color: var(--bg-color); 
-            color: var(--text-color); 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            text-align: center; 
-            padding: 20px;
-            transition: background 0.3s, color 0.3s;
-        }
-        
-        .panel { 
-            background: var(--panel-bg); 
-            max-width: 800px; 
-            margin: 20px auto; 
-            padding: 25px; 
-            border-radius: 12px; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            border: 1px solid var(--border-color);
-        }
-
-        .theme-toggle-container {
-            display: flex;
-            justify-content: flex-end;
-            max-width: 800px;
-            margin: 0 auto;
-        }
-
-        .theme-btn {
-            background: #333; color: #fff; width: auto; font-size: 13px; padding: 5px 15px; cursor: pointer; border-radius: 20px;
-        }
-        [data-theme="light"] .theme-btn { background: #dcdde1; color: #000; }
-
-        select, input, button { 
-            padding: 12px; margin: 8px; font-size: 15px; border-radius: 6px; 
-            border: 1px solid var(--border-color); width: 80%; max-width: 300px; 
-            box-sizing: border-box; background: var(--panel-bg); color: var(--text-color);
-        }
-        
+        body { background-color: var(--bg-color); color: var(--text-color); font-family: sans-serif; text-align: center; padding: 20px; transition: background 0.3s, color 0.3s; }
+        .panel { background: var(--panel-bg); max-width: 800px; margin: 20px auto; padding: 25px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); border: 1px solid var(--border-color); text-align: left; }
+        .center-text { text-align: center; }
+        select, input, button { padding: 10px; margin: 8px; font-size: 15px; border-radius: 5px; border: 1px solid var(--border-color); width: 100%; max-width: 300px; box-sizing: border-box; background: #333; color: #fff; }
+        [data-theme="light"] select, [data-theme="light"] input { background: #fff; color: #000; }
         button { background: #e1b12c; color: #000; font-weight: bold; cursor: pointer; transition: 0.2s; border: none; }
         button:hover { background: #fbc531; }
         button:disabled { opacity: 0.5; cursor: not-allowed; }
-
-        .btn-danger { background: #e84118; color: #fff; }
-        .btn-danger:hover { background: #c23616; }
-        .btn-success { background: #4cd137; color: #fff; }
-        .btn-success:hover { background: #44bd32; }
-
-        /* Real 3D Tumble Cube Engine Styles */
+        .flex-row { display: flex; flex-wrap: wrap; gap: 15px; justify-content: space-between; align-items: center; }
+        
+        /* 3D Dice Matrix Setup */
         .dice-container { display: flex; justify-content: center; gap: 40px; margin: 30px auto; min-height: 120px; }
         .cube { width: 80px; height: 80px; position: relative; transform-style: preserve-3d; transition: transform 0.5s ease-out; }
-        .face { position: absolute; width: 80px; height: 80px; border: 2px solid rgba(0,0,0,0.2); border-radius: 12px; }
+        .face { position: absolute; width: 80px; height: 80px; border: 2px solid #000; border-radius: 12px; opacity: 0.95; }
         
         .red { background: #ff2a2a; transform: rotateY(0deg) translateZ(40px); }
         .blue { background: #2a75ff; transform: rotateY(90deg) translateZ(40px); }
@@ -80,33 +42,30 @@
         .white { background: #ffffff; transform: rotateX(90deg) translateZ(40px); }
         .pink { background: #ff2ae2; transform: rotateX(-90deg) translateZ(40px); }
 
-        @keyframes diceSpin {
-            0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
-            100% { transform: rotateX(360deg) rotateY(720deg) rotateZ(360deg); }
+        .spinning { animation: tumble 0.2s infinite linear; }
+        @keyframes tumble {
+            0% { transform: rotateX(0deg) rotateY(0deg); }
+            100% { transform: rotateX(360deg) rotateY(360deg); }
         }
-        .spinning { animation: diceSpin 0.2s infinite linear !important; }
 
-        /* Betting Board Matrix */
-        .betting-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin: 20px 0; }
-        .bet-card { padding: 15px; border-radius: 8px; border: 2px solid var(--border-color); text-align: center; font-weight: bold; }
-        .bet-card input { width: 90%; margin-top: 10px; text-align: center; }
-
+        /* Bet Table grid */
+        .bet-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 15px 0; }
+        .bet-box { padding: 15px; border-radius: 8px; text-align: center; font-weight: bold; color: #000; cursor: pointer; }
         .hidden { display: none !important; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th, td { padding: 10px; border: 1px solid var(--border-color); text-align: left; }
-        th { background-color: rgba(0,0,0,0.1); }
-        .nav-bar { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
+        .log-box { height: 150px; overflow-y: scroll; background: #000; color: #0f0; padding: 10px; font-family: monospace; font-size: 12px; border-radius: 5px; }
     </style>
 </head>
 <body>
 
-    <div class="theme-toggle-container">
-        <button class="theme-btn" onclick="toggleTheme()">🌓 Switch Theme</button>
+    <div class="flex-row panel">
+        <h2>🎰 Live Perya Multi-Server Engine</h2>
+        <div>
+            <button onclick="toggleTheme()" style="width:auto; font-size:12px;">🌓 Theme</button>
+            <button id="btn-logout" class="hidden" onclick="logout()" style="width:auto; font-size:12px; background:#e74c3c; color:#fff;">Logout</button>
+        </div>
     </div>
 
-    <h1>🎰 Live Perya Multi-Server Engine 🎰</h1>
-
-    <div id="login-panel" class="panel">
+    <div id="login-panel" class="panel center-text">
         <h3>Choose Your Server Room Group</h3>
         <select id="room_id">
             <option value="Server_1">Sub-Server Admin #1 Group</option>
@@ -126,12 +85,12 @@
     </div>
 
     <div id="game-board" class="panel hidden">
-        <div class="nav-bar">
-            <span id="display-room" style="color: #e1b12c; font-weight:bold;">Room: --</span>
-            <span id="display-user" style="font-weight:bold;">Player: --</span>
-            <span id="player-balance" style="color:#4cd137; font-weight:bold;">💰 0 Coins</span>
-            <button class="btn-danger" style="width:auto; padding:5px 15px;" onclick="logOut()">Exit Game</button>
+        <div class="flex-row">
+            <h3 id="display-room">Connected Room: --</h3>
+            <h3 id="display-user">Player: --</h3>
+            <h3 id="display-balance" style="color:#4cd137;">Coins: 0</h3>
         </div>
+        <hr>
         
         <div class="dice-container">
             <div class="cube" id="dice1">
@@ -148,158 +107,149 @@
             </div>
         </div>
 
-        <h3>Place Your Stakes</h3>
-        <div class="betting-grid">
-            <div class="bet-card" style="background: rgba(255,42,42,0.2);">Red<br><input type="number" id="bet-red" value="0" min="0"></div>
-            <div class="bet-card" style="background: rgba(42,117,255,0.2);">Blue<br><input type="number" id="bet-blue" value="0" min="0"></div>
-            <div class="bet-card" style="background: rgba(42,255,83,0.2);">Green<br><input type="number" id="bet-green" value="0" min="0"></div>
-            <div class="bet-card" style="background: rgba(255,235,42,0.2); color:#000;">Yellow<br><input type="number" id="bet-yellow" value="0" min="0"></div>
-            <div class="bet-card" style="background: rgba(255,255,255,0.2);">White<br><input type="number" id="bet-white" value="0" min="0"></div>
-            <div class="bet-card" style="background: rgba(255,42,226,0.2);">Pink<br><input type="number" id="bet-pink" value="0" min="0"></div>
-        </div>
-        <button id="btn-submit-bets" class="btn-success" onclick="placeBets()">🔒 Confirm and Lock Bets</button>
-        <hr>
-
-        <div style="margin: 20px 0;">
+        <div class="center-text">
             <button id="btn-request-pull" onclick="requestPull()">🙋‍♂️ Request to Pull Rope</button>
-            <button id="btn-pull-rope" class="hidden" style="background:#4cd137; color: #fff;" onclick="triggerRoll()">🔔 PULL THE ROPE NOW</button>
+            <button id="btn-pull-rope" disabled onclick="executePull()">🔔 PULL THE ROPE NOW</button>
         </div>
+
+        <h4>Place Your Bets:</h4>
+        <div class="bet-grid">
+            <div class="bet-box" style="background:#ff2a2a;" onclick="placeBet('red')">RED (<span id="bet-red">0</span>)</div>
+            <div class="bet-box" style="background:#2a75ff; color:white;" onclick="placeBet('blue')">BLUE (<span id="bet-blue">0</span>)</div>
+            <div class="bet-box" style="background:#2aff53;" onclick="placeBet('green')">GREEN (<span id="bet-green">0</span>)</div>
+            <div class="bet-box" style="background:#ffeb2a;" onclick="placeBet('yellow')">YELLOW (<span id="bet-yellow">0</span>)</div>
+            <div class="bet-box" style="background:#ffffff;" onclick="placeBet('white')">WHITE (<span id="bet-white">0</span>)</div>
+            <div class="bet-box" style="background:#ff2ae2;" onclick="placeBet('pink')">PINK (<span id="bet-pink">0</span>)</div>
+        </div>
+        <input type="number" id="bet-amount" placeholder="Bet Amount" style="max-width:150px;">
+        <button onclick="clearBets()" style="background:#718093; color:white; width:auto;">Clear Staked Bets</button>
+
         <hr>
-        
-        <h3>Withdraw Earnings</h3>
-        <input type="number" id="withdraw-amount" placeholder="Amount to cashout" style="width:60%;"><br>
-        <button style="background:#9c88ff; color:#fff;" onclick="requestWithdraw()">Request Cashout</button>
+        <div class="flex-row">
+            <div>
+                <h4>Voucher Redeem:</h4>
+                <input type="text" id="voucher-code" placeholder="Enter Voucher Key" style="max-width:180px;">
+                <button onclick="redeemVoucher()" style="width:auto;">Redeem</button>
+            </div>
+            <div>
+                <h4>Withdraw Tokens:</h4>
+                <input type="number" id="withdraw-amount" placeholder="Coins" style="max-width:120px;">
+                <button onclick="requestWithdraw()" style="background:#e74c3c; color:white; width:auto;">Withdraw</button>
+            </div>
+        </div>
+        <h4>Personal Transaction History:</h4>
+        <div id="player-log" class="log-box"></div>
     </div>
 
-    <div id="admin-panel" class="panel hidden" style="border: 2px solid #e1b12c;">
-        <div class="nav-bar">
-            <h2 style="color: #e1b12c; margin:0;">🛠️ Control Deck: <span id="admin-room-title">--</span></h2>
-            <div>Current Circulation: <strong id="circulation-display" style="color:#4cd137;">0</strong> Coins</div>
-            <button class="btn-danger" style="width:auto; padding:5px 15px;" onclick="logOut()">Exit Panel</button>
+    <div id="admin-panel" class="panel hidden">
+        <h2 id="admin-title">🛠️ Room Manager Control Deck</h2>
+        <div class="flex-row">
+            <button onclick="adminForcePull()" style="background:#4cd137; color:white;">🚨 Master Pull Rope (All Users)</button>
         </div>
         <hr>
-
-        <button id="btn-admin-pull" style="background:#4cd137; color:#fff; width:100%; max-width:400px; font-size:18px; margin: 15px 0;" onclick="adminForcePull()">⚡ FORCE SYSTEM ROPE PULL (ALL CURRENT BOARD)</button>
+        <h3>Pending Access Authorizations:</h3>
+        <div id="request-list">No pending requests.</div>
         <hr>
-
-        <div class="betting-grid">
+        <div class="flex-row">
             <div>
-                <h3>Rope Approvals</h3>
-                <div id="pull-list">No requests.</div>
+                <h3>Add User To Group:</h3>
+                <input type="text" id="new-user" placeholder="Username"><br>
+                <button onclick="createUser()">Add Player Profile</button>
             </div>
             <div>
-                <h3>Cashout Approvals</h3>
-                <div id="withdraw-list">No requests.</div>
+                <h3>Generate Coin Voucher:</h3>
+                <select id="voucher-value" style="max-width:120px;">
+                    <option value="5">5</option><option value="10">10</option><option value="20">20</option>
+                    <option value="100">100</option><option value="200">200</option><option value="500">500</option>
+                    <option value="1000">1000</option><option value="custom">Custom</option>
+                </select>
+                <input type="number" id="custom-voucher-val" class="hidden" placeholder="Custom Value" style="max-width:110px;">
+                <button onclick="generateVoucher()" style="width:auto;">Generate</button>
             </div>
         </div>
         <hr>
-
-        <h3>Enroll / Add Player Profile:</h3>
-        <input type="text" id="new-user" placeholder="Target Account Name"><br>
-        <button class="btn-success" onclick="createUser()">Generate System Account</button>
-        
-        <h3>Registered Accounts List</h3>
-        <table>
-            <thead>
-                <tr><th>User Account</th><th>Password</th><th>Active Balance</th><th>Status</th></tr>
-            </thead>
-            <tbody id="users-table-body"></tbody>
-        </table>
+        <h3>Live Activity Logs:</h3>
+        <div id="admin-log" class="log-box"></div>
     </div>
 
     <script>
         const socket = io();
-        let currentUsername = "";
-        let currentRoomId = "";
-        let isAdmin = false;
-
-        const rotationAngles = {
-            "red": "rotateY(0deg)",
-            "blue": "rotateY(-90deg)",
-            "green": "rotateY(-180deg)",
-            "yellow": "rotateY(90deg)",
-            "white": "rotateX(-90deg)",
-            "pink": "rotateX(90deg)"
-        };
+        let activeRoom = "";
+        let playerBets = { red:0, blue:0, green:0, yellow:0, white:0, pink:0 };
+        const colorRotations = { red:"rotateY(0deg)", blue:"rotateY(-90deg)", green:"rotateY(-180deg)", yellow:"rotateY(90deg)", white:"rotateX(-90deg)", pink:"rotateX(90deg)" };
 
         function toggleTheme() {
-            const current = document.documentElement.getAttribute('data-theme');
-            document.documentElement.setAttribute('data-theme', current === 'light' ? 'dark' : 'light');
+            document.documentElement.setAttribute('data-theme', document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light');
         }
 
-        function submitLogin() {
-            const u = document.getElementById('username').value.trim();
-            const p = document.getElementById('password').value;
-            const r = document.getElementById('room_id').value;
+        function logout() {
+            window.location.reload();
+        }
 
-            if(!u || !p) { alert("Fields required."); return; }
-            socket.emit('join_game', { username: u, password: p, room_id: r });
+        document.getElementById('voucher-value').addEventListener('change', function() {
+            document.getElementById('custom-voucher-val').classList.toggle('hidden', this.value !== 'custom');
+        });
+
+        function submitLogin() {
+            socket.emit('join_game', {
+                username: document.getElementById('username').value.trim(),
+                password: document.getElementById('password').value,
+                room_id: document.getElementById('room_id').value
+            });
         }
 
         socket.on('user_status', function(data) {
-            currentUsername = data.username;
-            isAdmin = data.is_admin;
-            currentRoomId = data.room_id;
-
             document.getElementById('login-panel').classList.add('hidden');
-            if(isAdmin) {
+            document.getElementById('btn-logout').classList.remove('hidden');
+            activeRoom = data.room_id;
+
+            if (data.is_admin) {
                 document.getElementById('admin-panel').classList.remove('hidden');
-                document.getElementById('admin-room-title').innerText = currentRoomId.replace('_', ' ');
+                document.getElementById('admin-title').innerText = `🛠️ Control Deck - Room: ${data.room_id}`;
             } else {
                 document.getElementById('game-board').classList.remove('hidden');
-                document.getElementById('display-room').innerText = "Room: " + currentRoomId.replace('_', ' ');
-                document.getElementById('display-user').innerText = "Player: " + currentUsername;
-                document.getElementById('player-balance').innerText = "💰 " + data.coins + " Coins";
+                document.getElementById('display-room').innerText = `Connected Room: ${data.room_id}`;
+                document.getElementById('display-user').innerText = `Player: ${data.username}`;
+                document.getElementById('display-balance').innerText = `Coins: ${data.coins}`;
             }
         });
 
-        socket.on('login_failed', function(data) { alert(data.message); });
-        socket.on('admin_error', function(data) { alert(data.message); });
+        socket.on('login_failed', data => alert(data.message));
 
-        // Betting Logic
-        function placeBets() {
-            const payloads = {
-                red: parseInt(document.getElementById('bet-red').value) || 0,
-                blue: parseInt(document.getElementById('bet-blue').value) || 0,
-                green: parseInt(document.getElementById('bet-green').value) || 0,
-                yellow: parseInt(document.getElementById('bet-yellow').value) || 0,
-                white: parseInt(document.getElementById('bet-white').value) || 0,
-                pink: parseInt(document.getElementById('bet-pink').value) || 0
-            };
-            socket.emit('place_bets', { bets: payloads });
+        // Bets & Balance Sync
+        function placeBet(color) {
+            const amt = parseInt(document.getElementById('bet-amount').value);
+            if (!amt || amt <= 0) return alert("Enter a valid bet amount first.");
+            playerBets[color] += amt;
+            document.getElementById(`bet-${color}`).innerText = playerBets[color];
+            socket.emit('place_bet', { bets: playerBets });
         }
 
-        socket.on('bets_updated', function(data) {
-            document.getElementById('player-balance').innerText = "💰 " + data.coins + " Coins";
-            alert("Bets successfully locked down!");
+        function clearBets() {
+            playerBets = { red:0, blue:0, green:0, yellow:0, white:0, pink:0 };
+            Object.keys(playerBets).forEach(c => document.getElementById(`bet-${c}`).innerText = 0);
+            socket.emit('place_bet', { bets: playerBets });
+        }
+
+        socket.on('balance_update', data => {
+            document.getElementById('display-balance').innerText = `Coins: ${data.coins}`;
         });
 
-        // Rope pull logic
-        function requestPull() { socket.emit('request_pull', {}); }
-        socket.on('pull_requested_status', function(data) { alert(data.message); });
-        
-        socket.on('pull_permission_granted', function() {
-            document.getElementById('btn-request-pull').classList.add('hidden');
-            document.getElementById('btn-pull-rope').classList.remove('hidden');
+        // Pull permission logic
+        function requestPull() { socket.emit('request_pull'); }
+        function executePull() { socket.emit('execute_pull'); }
+        function adminForcePull() { socket.emit('admin_force_pull'); }
+
+        socket.on('pull_allowed', () => {
+            const btn = document.getElementById('btn-pull-rope');
+            btn.disabled = false;
+            btn.style.background = "#4cd137";
         });
 
-        function triggerRoll() {
-            socket.emit('execute_pull', {});
-        }
-
-        function adminForcePull() {
-            socket.emit('admin_force_pull', {});
-        }
-
-        // Live Spinning Hooks
-        socket.on('dice_rolling_started', function() {
+        socket.on('dice_rolling_start', () => {
             document.getElementById('dice1').classList.add('spinning');
             document.getElementById('dice2').classList.add('spinning');
             document.getElementById('dice3').classList.add('spinning');
-            
-            const btn = document.getElementById('btn-pull-rope');
-            btn.disabled = true;
-            btn.innerText = "⏳ ROLLING NOW...";
         });
 
         socket.on('roll_result', function(data) {
@@ -307,83 +257,74 @@
             document.getElementById('dice2').classList.remove('spinning');
             document.getElementById('dice3').classList.remove('spinning');
 
-            // Set final structural face angle orientation
-            document.getElementById('dice1').style.transform = rotationAngles[data.dice[0]];
-            document.getElementById('dice2').style.transform = rotationAngles[data.dice[1]];
-            document.getElementById('dice3').style.transform = rotationAngles[data.dice[2]];
-
-            // Reset buttons frame variables
-            const pBtn = document.getElementById('btn-pull-rope');
-            pBtn.classList.add('hidden');
-            pBtn.disabled = false;
-            pBtn.innerText = "🔔 PULL THE ROPE NOW";
-            document.getElementById('btn-request-pull').classList.remove('hidden');
-
-            if(!isAdmin && data.balances && data.balances[currentUsername] !== undefined) {
-                document.getElementById('player-balance').innerText = "💰 " + data.balances[currentUsername] + " Coins";
-            }
+            // Set final 3D surface rotations
+            document.getElementById('dice1').style.transform = colorRotations[data.dice[0]];
+            document.getElementById('dice2').style.transform = colorRotations[data.dice[1]];
+            document.getElementById('dice3').style.transform = colorRotations[data.dice[2]];
             
-            // Clear inputs
-            if(!isAdmin) {
-                ['red','blue','green','yellow','white','pink'].forEach(c => document.getElementById('bet-'+c).value = 0);
-            }
+            playerBets = { red:0, blue:0, green:0, yellow:0, white:0, pink:0 };
+            Object.keys(playerBets).forEach(c => document.getElementById(`bet-${c}`).innerText = 0);
+            
+            document.getElementById('btn-pull-rope').disabled = true;
         });
 
-        // Cashout Action
+        // Vouchers & Withdraws
+        function generateVoucher() {
+            let val = document.getElementById('voucher-value').value;
+            if (val === 'custom') val = document.getElementById('custom-voucher-val').value;
+            socket.emit('create_voucher', { value: parseInt(val) });
+        }
+
+        function redeemVoucher() {
+            socket.emit('redeem_voucher', { code: document.getElementById('voucher-code').value.trim() });
+            document.getElementById('voucher-code').value = "";
+        }
+
         function requestWithdraw() {
-            const amt = parseInt(document.getElementById('withdraw-amount').value) || 0;
-            if(amt <= 0) return alert("Enter valid configuration amount.");
-            socket.emit('request_withdraw', { amount: amt });
+            socket.emit('request_withdraw', { amount: parseInt(document.getElementById('withdraw-amount').value) });
             document.getElementById('withdraw-amount').value = "";
         }
 
         function createUser() {
-            const u = document.getElementById('new-user').value.trim();
-            if(!u) return alert("Enter structural username.");
-            socket.emit('create_player', { username: u, coins: 1000 });
+            socket.emit('create_player', { username: document.getElementById('new-user').value.trim() });
             document.getElementById('new-user').value = "";
         }
 
-        // Real-time synchronization panels updates loop
+        // Processing Panel Tables
         socket.on('admin_dashboard_update', function(data) {
-            if(!isAdmin) return;
-            document.getElementById('circulation-display').innerText = data.total_coins;
-
-            // Render Pull approvals
-            const pList = document.getElementById('pull-list');
-            pList.innerHTML = data.pull_requests.length === 0 ? "No requests." : "";
-            data.pull_requests.forEach(u => {
-                pList.innerHTML += `<div><span>${u}</span>
-                    <button class="btn-success" onclick="socket.emit('grant_pull_permission', {username:'${u}', approve:true})">Approve</button>
-                    <button class="btn-danger" onclick="socket.emit('grant_pull_permission', {username:'${u}', approve:false})">Deny</button>
-                </div><br>`;
+            const tray = document.getElementById('request-list');
+            tray.innerHTML = "";
+            
+            data.pull_requests.forEach(user => {
+                tray.innerHTML += `<div style="background:#333; padding:10px; margin:5px; border-radius:5px; display:flex; justify-content:space-between;">
+                    <span>Rope Request: <b>${user}</b></span>
+                    <div>
+                        <button onclick="socket.emit('handle_pull_request', {username:'${user}', action:'approve'})" style="background:#2ecc71; width:auto; margin:0 5px;">Approve</button>
+                        <button onclick="socket.emit('handle_pull_request', {username:'${user}', action:'deny'})" style="background:#e74c3c; width:auto; margin:0 5px;">Deny</button>
+                    </div>
+                </div>`;
             });
 
-            // Render Withdraw approvals
-            const wList = document.getElementById('withdraw-list');
-            wList.innerHTML = data.pending_withdraws.length === 0 ? "No requests." : "";
-            data.pending_withdraws.forEach(w => {
-                wList.innerHTML += `<div><span>${w.username}: 💰${w.amount}</span>
-                    <button class="btn-success" onclick="socket.emit('process_withdraw_decision', {id:${w.id}, approve:true})">Approve</button>
-                    <button class="btn-danger" onclick="socket.emit('process_withdraw_decision', {id:${w.id}, approve:false})">Deny</button>
-                </div><br>`;
-            });
-
-            // Populate system account tables frame data
-            const tbody = document.getElementById('users-table-body');
-            tbody.innerHTML = "";
-            data.users.forEach(user => {
-                if(user.is_admin) return;
-                tbody.innerHTML += `<tr>
-                    <td><strong>${user.username}</strong></td>
-                    <td><code>${user.password}</code></td>
-                    <td>💰 ${user.coins}</td>
-                    <td><span style="color:${user.online ? '#4cd137':'#7f8c8d'}">${user.online ? 'ONLINE':'OFFLINE'}</span></td>
-                </tr>`;
+            data.withdraws.forEach(w => {
+                tray.innerHTML += `<div style="background:#333; padding:10px; margin:5px; border-radius:5px; display:flex; justify-content:space-between;">
+                    <span>Withdraw Request: <b>${w.username}</b> (💰 ${w.amount})</span>
+                    <div>
+                        <button onclick="socket.emit('handle_withdraw_request', {id:${w.id}, action:'approve'})" style="background:#2ecc71; width:auto; margin:0 5px;">Approve</button>
+                        <button onclick="socket.emit('handle_withdraw_request', {id:${w.id}, action:'deny'})" style="background:#e74c3c; width:auto; margin:0 5px;">Deny</button>
+                    </div>
+                </div>`;
             });
         });
 
-        function logOut() { window.location.reload(); }
+        socket.on('log_msg', function(data) {
+            const box = document.getElementById('player-log');
+            if(box) box.innerHTML = `<div>${data.text}</div>` + box.innerHTML;
+        });
+
+        socket.on('admin_log_msg', function(data) {
+            const box = document.getElementById('admin-log');
+            if(box) box.innerHTML = `<div>${data.text}</div>` + box.innerHTML;
+        });
     </script>
 </body>
 </html>
