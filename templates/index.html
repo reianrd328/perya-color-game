@@ -244,8 +244,9 @@
             }
         }
 
+        // Clean event listeners replacing unhandled promise catch mechanisms
         socket.on('login_failed', d => alert(d.message));
-        socket.on('admin_error', d => alert(d.message));
+        socket.on('admin_error', d => alert("❌ Operation failed: " + d.message));
         socket.on('bet_failed', d => alert(d.message));
         socket.on('withdraw_failed', d => alert(d.message));
         socket.on('voucher_failed', d => alert(d.message));
@@ -329,12 +330,11 @@
                 voucherList.innerHTML = d.vouchers.map(v => `<div>Code: <code>${v.code}</code> Value: <b>${v.amount} Coins</b> (Room: ${v.room_id})</div>`).join('');
             }
 
-            // 🌟 Dynamic Table Hydration Engine for the Accounts Ledger Matrix
             const tableBody = document.getElementById('admin-accounts-table');
             if (tableBody && d.users) {
                 tableBody.innerHTML = '';
                 d.users.forEach(u => {
-                    if (u.is_super_admin) return; // Protect system root from recursive hazards
+                    if (u.is_super_admin) return; 
                     
                     const tr = document.createElement('tr');
                     tr.style.borderBottom = "1px solid var(--border)";
@@ -349,15 +349,4 @@
                         <td style="padding: 8px;"><code style="background:#111; padding:2px 4px;">${u.room_id}</code></td>
                         <td style="padding: 8px; color:#f1c40f; font-weight:bold;">${u.coins}</td>
                         <td style="padding: 8px;">${tier}</td>
-                        <td style="padding: 8px;">${status}</td>
-                        <td style="padding: 8px;">
-                            <button style="background:#ff7675; color:#fff; border:none; padding:4px 8px; font-size:12px; border-radius:4px; width:auto; margin:0;" onclick="pruneAccount('${u.username}')">Prune</button>
-                        </td>
-                    `;
-                    tableBody.appendChild(tr);
-                });
-            }
-        });
-    </script>
-</body>
-</html>
+                        <td style
