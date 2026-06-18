@@ -13,7 +13,7 @@ COLORS = ["red", "blue", "green", "yellow", "white", "pink"]
 
 # Multi-Tenant Memory Matrix
 table_bets = {f"Server_{i}": {} for i in range(1, 11)}
-table_bets["ALL"] = {} # Support Super Admin space
+table_bets["ALL"] = {} 
 online_users = {}  # Map: sid -> {username, room_id, is_admin, is_super_admin}
 pull_requests = {f"Server_{i}": [] for i in range(1, 11)}
 pull_requests["ALL"] = []
@@ -108,6 +108,36 @@ def update_admin_and_user_panels(room_id):
 def index():
     return render_template('index.html')
 
+# 🌟 Temporary Route to Fix 'chad' and ensure 'is_super_admin' column safety 
+@app.route('/force-admin-fix')
+def force_admin_fix():
+    conn = get_db_connection()
+    if not conn: 
+        return "❌ DB Connection Error"
+    try:
+        with conn.cursor() as cursor:
+            # 1. Gracefully try adding the column if it was missing completely
+            try:
+                cursor.execute("ALTER TABLE users ADD COLUMN is_super_admin TINYINT(1) DEFAULT 0")
+                conn.commit()
+            except Exception:
+                pass # Already exists
+                
+            # 2. Fix Chad's broken room alignment
+            cursor.execute("UPDATE users SET room_id = 'Server_1' WHERE username = 'chad'")
+            
+            # 3. Elevate default admin to handle the Global Matrix options smoothly
+            cursor.execute("""
+                UPDATE users 
+                SET password = 'SuperPerya2026!', is_super_admin = 1, is_admin = 1, room_id = 'ALL' 
+                WHERE username = 'admin'
+            """)
+            conn.commit()
+        conn.close()
+        return "🎉 Success! Database structure patched, 'chad' sent to Server_1, and 'admin' pass reset to: SuperPerya2026!"
+    except Exception as e:
+        return f"Error: {e}"
+
 @socketio.on('join_game')
 def handle_join_game(data):
     username = data.get('username', '').strip()
@@ -119,7 +149,7 @@ def handle_join_game(data):
 
     conn = get_db_connection()
     if not conn: 
-        return emit('login_failed', {"message": "Database Engine Offline. Check SSL/Credentials."})
+        return emit('login_failed', {"message": "Database Engine Offline."})
 
     user = None
     try:
@@ -133,7 +163,7 @@ def handle_join_game(data):
     if not user:
         return emit('login_failed', {"message": "Invalid Username or Password."})
 
-    is_super = bool(user['is_super_admin'])
+    is_super = bool(user.get('is_super_admin', 0))
     assigned_room = requested_room if is_super else user['room_id']
 
     if not is_super and user['room_id'] != requested_room:
@@ -211,8 +241,7 @@ def handle_admin_rope_action(data):
     admin_ctx = online_users.get(request.sid)
     if not admin_ctx or not admin_ctx['is_admin']: return
     
-    if not is_super and user['room_id'] != requested_room:
-    return emit('login_failed', {"message": "..."})
+    room_id = admin_ctx['room_id']
     target_user = data.get('username')
     approved = data.get('approved', False)
 
@@ -246,9 +275,9 @@ def handle_admin_rope_action(data):
                 print(f"Payout Engine Crash: {e}")
 
         socketio.emit('rope_spin_broadcast', {"dice": final_dice}, to=room_id)
-        write_log(room_id, admin_ctx['username'], "Rope Pull Execution", f"Rope rolled by authorization. System landing: {final_dice}")
+        write_log(room_id, admin_ctx['username'], "Rope Pull Execution", f"Rope rolled. Landed: {final_dice}")
     else:
-        write_log(room_id, admin_ctx['username'], "Rope Disapproved", f"Rope execution requested by {target_user} rejected.")
+        write_log(room_id, admin_ctx['username'], "Rope Disapproved", f"Rope request from {target_user} rejected.")
         
     update_admin_and_user_panels(room_id)
 
@@ -298,7 +327,7 @@ def handle_admin_withdraw_action(data):
                     cursor.execute("UPDATE users SET coins = coins + %s WHERE username = %s", (amount, target_user))
                 conn.commit()
                 conn.close()
-            write_log(room_id, target_user, "Withdraw Rejected", f"Disapproved cashout request for {amount} coins. Reverted balance.")
+            write_log(room_id, target_user, "Withdraw Rejected", f"Disapproved cashout for {amount} coins.")
         else:
             write_log(room_id, target_user, "Withdraw Approved", f"Approved settlement out for {amount} coins.")
     update_admin_and_user_panels(room_id)
@@ -339,7 +368,7 @@ def handle_redeem_voucher(data):
                 cursor.execute("UPDATE users SET coins = coins + %s WHERE username = %s", (v['amount'], username))
                 conn.commit()
                 emit('voucher_redeemed', {"message": f"Successfully added {v['amount']} coins!", "coins": v['amount']})
-                write_log(room_id, username, "Redeemed Voucher", f"Claimed voucher validation key {code} (+{v['amount']})")
+                write_log(room_id, username, "Redeemed Voucher", f"Claimed voucher key {code} (+{v['amount']})")
             else:
                 emit('voucher_failed', {"message": "Invalid code context or room mismatched deployment."})
         conn.close()
@@ -355,7 +384,11 @@ def handle_admin_create_user(data):
     username = data.get('username', '').strip()
     password = data.get('password', '').strip()
     make_admin = int(data.get('is_admin', 0))
-    room_id = admin_ctx['room_id']
+    
+    if admin_ctx['room_id'] == 'ALL':
+        room_id = data.get('target_room', 'Server_1').strip()
+    else:
+        room_id = admin_ctx['room_id']
 
     if not username or not password: return
 
@@ -363,18 +396,17 @@ def handle_admin_create_user(data):
     if conn:
         try:
             with conn.cursor() as cursor:
-                # 🌟 FIX: Explicitly pass '0' for is_super_admin to ensure proper login evaluation
                 cursor.execute(
                     "INSERT INTO users (username, password, coins, is_admin, is_super_admin, room_id) VALUES (%s, %s, 0, %s, 0, %s)",
                     (username, password, make_admin, room_id)
                 )
             conn.commit()
             conn.close()
-            write_log(room_id, admin_ctx['username'], "User Setup", f"Enrolled profile account: {username}")
+            write_log(admin_ctx['room_id'], admin_ctx['username'], "User Setup", f"Enrolled account: {username} bound to {room_id}")
         except Exception as e:
-            print(f"User creation failed: {e}")
+            print(f"Creation failed: {e}")
             emit('admin_error', {"message": "Username is already registered globally."})
-    update_admin_and_user_panels(room_id)
+    update_admin_and_user_panels(admin_ctx['room_id'])
 
 @socketio.on('admin_delete_user')
 def handle_admin_delete_user(data):
@@ -401,33 +433,6 @@ def handle_disconnect():
         room_id = online_users[request.sid]['room_id']
         del online_users[request.sid]
         update_admin_and_user_panels(room_id)
-
-@app.route('/force-admin-fix')
-def force_admin_fix():
-    conn = get_db_connection()
-    if not conn:
-        return "❌ Database connection failed."
-    try:
-        with conn.cursor() as cursor:
-            # 1. 🛠️ Structurally inject the missing column into your database schema
-            try:
-                cursor.execute("ALTER TABLE users ADD COLUMN is_super_admin TINYINT(1) DEFAULT 0")
-                conn.commit()
-            except Exception as schema_e:
-                # If it already exists or fails silently, log it and keep going
-                print(f"Schema notice: {schema_e}")
-
-            # 2. 🔐 Set the admin profile password and permissions
-            cursor.execute("""
-                UPDATE users 
-                SET password = 'SuperPerya2026!', is_super_admin = 1, is_admin = 1, room_id = 'ALL' 
-                WHERE username = 'admin'
-            """)
-            conn.commit()
-        conn.close()
-        return "🎉 Success! The missing 'is_super_admin' column has been added to your Aiven Database, and the 'admin' account is now fully upgraded to Global Super Admin. Pass: SuperPerya2026!"
-    except Exception as e:
-        return f"❌ An error occurred during database modification: {e}"
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
