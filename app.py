@@ -211,7 +211,8 @@ def handle_admin_rope_action(data):
     admin_ctx = online_users.get(request.sid)
     if not admin_ctx or not admin_ctx['is_admin']: return
     
-    room_id = admin_ctx['room_id']
+    if not is_super and user['room_id'] != requested_room:
+    return emit('login_failed', {"message": "..."})
     target_user = data.get('username')
     approved = data.get('approved', False)
 
