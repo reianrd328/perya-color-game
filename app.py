@@ -403,18 +403,26 @@ def handle_disconnect():
 def force_admin_fix():
     conn = get_db_connection()
     if not conn:
-        return "❌ Database connection failed. Verify your environment variable strings."
+        return "❌ Database connection failed."
     try:
         with conn.cursor() as cursor:
-            # This SQL statement fixes your admin permissions in the cloud
+            # 1. 🛠️ Structurally inject the missing column into your database schema
+            try:
+                cursor.execute("ALTER TABLE users ADD COLUMN is_super_admin TINYINT(1) DEFAULT 0")
+                conn.commit()
+            except Exception as schema_e:
+                # If it already exists or fails silently, log it and keep going
+                print(f"Schema notice: {schema_e}")
+
+            # 2. 🔐 Set the admin profile password and permissions
             cursor.execute("""
                 UPDATE users 
-                SET is_super_admin = 1, is_admin = 1, room_id = 'ALL' 
+                SET password = 'SuperPerya2026!', is_super_admin = 1, is_admin = 1, room_id = 'ALL' 
                 WHERE username = 'admin'
             """)
             conn.commit()
         conn.close()
-        return "🎉 Success! The 'admin' profile has been elevated to Global Super Admin. You can now use the ALL room dropdown option."
+        return "🎉 Success! The missing 'is_super_admin' column has been added to your Aiven Database, and the 'admin' account is now fully upgraded to Global Super Admin. Pass: SuperPerya2026!"
     except Exception as e:
         return f"❌ An error occurred during database modification: {e}"
 
