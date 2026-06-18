@@ -135,75 +135,53 @@
         <div id="admin-voucher-list" class="log-box" style="margin-top:5px;"></div>
 
         <h3>Enroll Multi-Tenant Profiles</h3>
-<input type="text" id="new-user" placeholder="Username Account ID">
-<input type="password" id="new-pass" placeholder="Authorization Password Path">
-<select id="new-role">
-    <option value="0">Standard Player Tier Profile</option>
-    <option value="1">Local Server Admin Officer</option>
-</select>
-<!-- 🌟 ADD THIS NEW TARGET ROOM DROPDOWN -->
-<label style="font-size: 13px; margin-top: 5px; display: block;">Assign Target Room Scope:</label>
-<select id="new-user-room">
-    <option value="Server_1">Sub-Server Admin #1 Group</option>
-    <option value="Server_2">Sub-Server Admin #2 Group</option>
-    <option value="Server_3">Sub-Server Admin #3 Group</option>
-    <option value="Server_4">Sub-Server Admin #4 Group</option>
-    <option value="Server_5">Sub-Server Admin #5 Group</option>
-    <option value="Server_6">Sub-Server Admin #6 Group</option>
-    <option value="Server_7">Sub-Server Admin #7 Group</option>
-    <option value="Server_8">Sub-Server Admin #8 Group</option>
-    <option value="Server_9">Sub-Server Admin #9 Group</option>
-    <option value="Server_10">Sub-Server Admin #10 Group</option>
-</select>
-<button style="background:#4cd137; color:#fff;" onclick="createUser()">Register Core Profile Entry</button>
+        <input type="text" id="new-user" placeholder="Username Account ID">
+        <input type="password" id="new-pass" placeholder="Authorization Password Path">
+        <select id="new-role">
+            <option value="0">Standard Player Tier Profile</option>
+            <option value="1">Local Server Admin Officer</option>
+        </select>
+        
+        <label style="font-size: 13px; margin-top: 5px; display: block;">Assign Target Room Scope:</label>
+        <select id="new-user-room">
+            <option value="Server_1">Sub-Server Admin #1 Group</option>
+            <option value="Server_2">Sub-Server Admin #2 Group</option>
+            <option value="Server_3">Sub-Server Admin #3 Group</option>
+            <option value="Server_4">Sub-Server Admin #4 Group</option>
+            <option value="Server_5">Sub-Server Admin #5 Group</option>
+            <option value="Server_6">Sub-Server Admin #6 Group</option>
+            <option value="Server_7">Sub-Server Admin #7 Group</option>
+            <option value="Server_8">Sub-Server Admin #8 Group</option>
+            <option value="Server_9">Sub-Server Admin #9 Group</option>
+            <option value="Server_10">Sub-Server Admin #10 Group</option>
+        </select>
+        <button style="background:#4cd137; color:#fff;" onclick="createUser()">Register Core Profile Entry</button>
 
-        <h3>Registered Server Fleet Ledger Profiles</h3>
-        <div id="admin-user-list" class="log-box" style="max-height:250px;"></div>
+        <h3>Registered Network Accounts Ledger</h3>
+        <div style="overflow-x: auto; margin: 10px 0;">
+            <table border="1" style="width:100%; border-collapse: collapse; text-align: left; background: #222; color: #fff; border-color: var(--border);">
+                <thead>
+                    <tr style="background: #333;">
+                        <th style="padding: 8px;">Username</th>
+                        <th style="padding: 8px;">Bound Room Scope</th>
+                        <th style="padding: 8px;">Balance (Coins)</th>
+                        <th style="padding: 8px;">Account Tier</th>
+                        <th style="padding: 8px;">Status</th>
+                        <th style="padding: 8px;">Management Action</th>
+                    </tr>
+                </thead>
+                <tbody id="admin-accounts-table">
+                    </tbody>
+            </table>
+        </div>
 
         <h3>Unified Room Engine Activity Trace Logs</h3>
         <div id="admin-log" class="log-box"></div>
     </div>
 
-    <div class="admin-section">
-    <h3>Registered Network Accounts Ledger</h3>
-    <table border="1" style="width:100%; border-collapse: collapse; text-align: left; background: #222; color: #fff;">
-        <thead>
-            <tr style="background: #333;">
-                <th style="padding: 8px;">Username</th>
-                <th style="padding: 8px;">Bound Room Scope</th>
-                <th style="padding: 8px;">Balance (Coins)</th>
-                <th style="padding: 8px;">Account Tier</th>
-                <th style="padding: 8px;">Status</th>
-                <th style="padding: 8px;">Management Action</th>
-            </tr>
-        </thead>
-        <tbody id="admin-accounts-table">
-            <!-- Dynamic profile accounts list will inject here -->
-        </tbody>
-    </table>
-        <h3>Registered Network Accounts Ledger</h3>
-    <table border="1" style="width:100%; border-collapse: collapse; text-align: left; background: #222; color: #fff;">
-        <thead>
-            <tr style="background: #333;">
-                <th style="padding: 8px;">Username</th>
-                <th style="padding: 8px;">Bound Room Scope</th>
-                <th style="padding: 8px;">Balance (Coins)</th>
-                <th style="padding: 8px;">Account Tier</th>
-                <th style="padding: 8px;">Status</th>
-                <th style="padding: 8px;">Management Action</th>
-            </tr>
-        </thead>
-        <tbody id="admin-accounts-table">
-            <!-- Dynamic profile accounts list will inject here -->
-        </tbody>
-    </table>
-</div>
-</div>
-
     <script>
         const roomSelect = document.getElementById('room_id');
         
-        // 🌟 Fixed: Seed explicit Super Admin Scope matching the database room_id row
         let superOpt = document.createElement('option');
         superOpt.value = "ALL"; 
         superOpt.innerText = "Global Core Network Matrix (Super Admin)";
@@ -254,9 +232,16 @@
             socket.emit('admin_create_user', {
                 username: document.getElementById('new-user').value,
                 password: document.getElementById('new-pass').value,
-                is_admin: parseInt(document.getElementById('new-role').value)
+                is_admin: parseInt(document.getElementById('new-role').value),
+                target_room: document.getElementById('new-user-room').value
             });
             document.getElementById('new-user').value = ""; document.getElementById('new-pass').value = "";
+        }
+
+        function pruneAccount(targetUser) {
+            if (confirm(`Are you absolutely sure you want to drop and prune profile configuration for: ${targetUser}?`)) {
+                socket.emit('admin_delete_user', { username: targetUser });
+            }
         }
 
         socket.on('login_failed', d => alert(d.message));
@@ -339,14 +324,38 @@
                 ).join('');
             }
 
-            const userList = document.getElementById('admin-user-list');
-            if(userList && d.users) {
-                userList.innerHTML = d.users.map(u => `<div>Scope: [${u.room_id}] | <b>${u.username}</b> - Balance: ${u.coins} Coins (${u.online ? '🟢 Online' : '🔴 Offline'})</div>`).join('');
-            }
-
             const voucherList = document.getElementById('admin-voucher-list');
             if(voucherList && d.vouchers) {
                 voucherList.innerHTML = d.vouchers.map(v => `<div>Code: <code>${v.code}</code> Value: <b>${v.amount} Coins</b> (Room: ${v.room_id})</div>`).join('');
+            }
+
+            // 🌟 Dynamic Table Hydration Engine for the Accounts Ledger Matrix
+            const tableBody = document.getElementById('admin-accounts-table');
+            if (tableBody && d.users) {
+                tableBody.innerHTML = '';
+                d.users.forEach(u => {
+                    if (u.is_super_admin) return; // Protect system root from recursive hazards
+                    
+                    const tr = document.createElement('tr');
+                    tr.style.borderBottom = "1px solid var(--border)";
+                    
+                    const tier = u.is_admin ? "🛠️ Local Admin" : "👤 Standard Player";
+                    const status = u.online 
+                        ? '<span style="color:#4cd137; font-weight:bold;">● Live Online</span>' 
+                        : '<span style="color:#7f8c8d;">○ Offline</span>';
+
+                    tr.innerHTML = `
+                        <td style="padding: 8px;">${u.username}</td>
+                        <td style="padding: 8px;"><code style="background:#111; padding:2px 4px;">${u.room_id}</code></td>
+                        <td style="padding: 8px; color:#f1c40f; font-weight:bold;">${u.coins}</td>
+                        <td style="padding: 8px;">${tier}</td>
+                        <td style="padding: 8px;">${status}</td>
+                        <td style="padding: 8px;">
+                            <button style="background:#ff7675; color:#fff; border:none; padding:4px 8px; font-size:12px; border-radius:4px; width:auto; margin:0;" onclick="pruneAccount('${u.username}')">Prune</button>
+                        </td>
+                    `;
+                    tableBody.appendChild(tr);
+                });
             }
         });
     </script>
