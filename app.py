@@ -362,14 +362,16 @@ def handle_admin_create_user(data):
     if conn:
         try:
             with conn.cursor() as cursor:
+                # 🌟 FIX: Explicitly pass '0' for is_super_admin to ensure proper login evaluation
                 cursor.execute(
-                    "INSERT INTO users (username, password, coins, is_admin, room_id) VALUES (%s, %s, 0, %s, %s)",
+                    "INSERT INTO users (username, password, coins, is_admin, is_super_admin, room_id) VALUES (%s, %s, 0, %s, 0, %s)",
                     (username, password, make_admin, room_id)
                 )
             conn.commit()
             conn.close()
             write_log(room_id, admin_ctx['username'], "User Setup", f"Enrolled profile account: {username}")
         except Exception as e:
+            print(f"User creation failed: {e}")
             emit('admin_error', {"message": "Username is already registered globally."})
     update_admin_and_user_panels(room_id)
 
