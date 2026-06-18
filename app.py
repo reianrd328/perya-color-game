@@ -399,5 +399,24 @@ def handle_disconnect():
         del online_users[request.sid]
         update_admin_and_user_panels(room_id)
 
+@app.route('/force-admin-fix')
+def force_admin_fix():
+    conn = get_db_connection()
+    if not conn:
+        return "❌ Database connection failed. Verify your environment variable strings."
+    try:
+        with conn.cursor() as cursor:
+            # This SQL statement fixes your admin permissions in the cloud
+            cursor.execute("""
+                UPDATE users 
+                SET is_super_admin = 1, is_admin = 1, room_id = 'ALL' 
+                WHERE username = 'admin'
+            """)
+            conn.commit()
+        conn.close()
+        return "🎉 Success! The 'admin' profile has been elevated to Global Super Admin. You can now use the ALL room dropdown option."
+    except Exception as e:
+        return f"❌ An error occurred during database modification: {e}"
+
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
