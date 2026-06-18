@@ -135,10 +135,27 @@
         <div id="admin-voucher-list" class="log-box" style="margin-top:5px;"></div>
 
         <h3>Enroll Multi-Tenant Profiles</h3>
-        <input type="text" id="new-user" placeholder="Username Account ID">
-        <input type="password" id="new-pass" placeholder="Authorization Password Path">
-        <select id="new-role"><option value="0">Standard Player Tier Profile</option><option value="1">Local Server Admin Officer</option></select>
-        <button style="background:#4cd137; color:#fff;" onclick="createUser()">Register Core Profile Entry</button>
+<input type="text" id="new-user" placeholder="Username Account ID">
+<input type="password" id="new-pass" placeholder="Authorization Password Path">
+<select id="new-role">
+    <option value="0">Standard Player Tier Profile</option>
+    <option value="1">Local Server Admin Officer</option>
+</select>
+<!-- 🌟 ADD THIS NEW TARGET ROOM DROPDOWN -->
+<label style="font-size: 13px; margin-top: 5px; display: block;">Assign Target Room Scope:</label>
+<select id="new-user-room">
+    <option value="Server_1">Sub-Server Admin #1 Group</option>
+    <option value="Server_2">Sub-Server Admin #2 Group</option>
+    <option value="Server_3">Sub-Server Admin #3 Group</option>
+    <option value="Server_4">Sub-Server Admin #4 Group</option>
+    <option value="Server_5">Sub-Server Admin #5 Group</option>
+    <option value="Server_6">Sub-Server Admin #6 Group</option>
+    <option value="Server_7">Sub-Server Admin #7 Group</option>
+    <option value="Server_8">Sub-Server Admin #8 Group</option>
+    <option value="Server_9">Sub-Server Admin #9 Group</option>
+    <option value="Server_10">Sub-Server Admin #10 Group</option>
+</select>
+<button style="background:#4cd137; color:#fff;" onclick="createUser()">Register Core Profile Entry</button>
 
         <h3>Registered Server Fleet Ledger Profiles</h3>
         <div id="admin-user-list" class="log-box" style="max-height:250px;"></div>
