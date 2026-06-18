@@ -164,6 +164,25 @@
         <div id="admin-log" class="log-box"></div>
     </div>
 
+    <div class="admin-section">
+    <h3>Registered Network Accounts Ledger</h3>
+    <table border="1" style="width:100%; border-collapse: collapse; text-align: left; background: #222; color: #fff;">
+        <thead>
+            <tr style="background: #333;">
+                <th style="padding: 8px;">Username</th>
+                <th style="padding: 8px;">Bound Room Scope</th>
+                <th style="padding: 8px;">Balance (Coins)</th>
+                <th style="padding: 8px;">Account Tier</th>
+                <th style="padding: 8px;">Status</th>
+                <th style="padding: 8px;">Management Action</th>
+            </tr>
+        </thead>
+        <tbody id="admin-accounts-table">
+            <!-- Dynamic profile accounts list will inject here -->
+        </tbody>
+    </table>
+</div>
+
     <script>
         const roomSelect = document.getElementById('room_id');
         
