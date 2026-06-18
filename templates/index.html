@@ -20,15 +20,12 @@
         button:hover { background: #fbc531; }
         .hidden { display: none !important; }
         
-        /* Persistent Responsive Dice Framework */
         .dice-container { display: flex; justify-content: center; gap: 15px; margin: 20px 0; }
         .cube-shell { width: 70px; height: 70px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; text-transform: uppercase; border: 2px solid #000; text-shadow: 1px 1px 2px #000; color: #fff;}
         
-        /* Color Mapping definitions */
         .red { background: #ff2a2a; } .blue { background: #2a75ff; } .green { background: #2aff53; }
         .yellow { background: #ffeb2a; color: #000; text-shadow: none; } .white { background: #ffffff; color: #000; text-shadow: none; } .pink { background: #ff2ae2; }
 
-        /* Smooth Ongoing Spin Sequence Trigger */
         .spinning-active { animation: uniformSpin 0.15s linear infinite; box-shadow: 0 0 15px #e1b12c; border-color: #e1b12c; }
         @keyframes uniformSpin {
             0% { transform: rotate(0deg) scale(1); }
@@ -151,8 +148,14 @@
     </div>
 
     <script>
-        // Inject 10 Isolation Servers inside Select elements
         const roomSelect = document.getElementById('room_id');
+        
+        // 🌟 Fixed: Seed explicit Super Admin Scope matching the database room_id row
+        let superOpt = document.createElement('option');
+        superOpt.value = "ALL"; 
+        superOpt.innerText = "Global Core Network Matrix (Super Admin)";
+        roomSelect.appendChild(superOpt);
+
         for(let i=1; i<=10; i++) {
             let opt = document.createElement('option');
             opt.value = `Server_${i}`; opt.innerText = `Sub-Server Admin #${i} Group`;
@@ -203,7 +206,6 @@
             document.getElementById('new-user').value = ""; document.getElementById('new-pass').value = "";
         }
 
-        // Processing Runtime Event Streaming Handlers
         socket.on('login_failed', d => alert(d.message));
         socket.on('admin_error', d => alert(d.message));
         socket.on('bet_failed', d => alert(d.message));
@@ -214,7 +216,7 @@
         socket.on('user_status', d => {
             document.getElementById('login-panel').classList.add('hidden');
             currentRoom = d.room_id;
-            if(d.is_admin) {
+            if(d.is_admin || d.is_super_admin) {
                 document.getElementById('admin-panel').classList.remove('hidden');
                 document.getElementById('admin-room-title').innerText = "Managing Server Scope: " + currentRoom;
             } else {
@@ -232,34 +234,32 @@
 
         socket.on('rope_spin_broadcast', d => {
             const d1 = document.getElementById('dice1'), d2 = document.getElementById('dice2'), d3 = document.getElementById('dice3');
-            
-            // Activate structural rolling state classes across clients
             d1.className = d2.className = d3.className = "cube-shell spinning-active";
             
             setTimeout(() => {
-                // Clear active spinning sequences after 2 seconds
                 d1.className = `cube-shell ${d.dice[0]}`; d1.innerText = d.dice[0];
                 d2.className = `cube-shell ${d.dice[1]}`; d2.innerText = d.dice[1];
                 d3.className = `cube-shell ${d.dice[2]}`; d3.innerText = d.dice[2];
                 
-                // Clear active staking arrays visual metrics back to default
                 const elements = ['red','blue','green','yellow','white','pink'];
                 elements.forEach(e => { document.getElementById(`b-${e}`).innerText = "0"; });
             }, 2000);
         });
 
         socket.on('admin_dashboard_update', d => {
-            // Live-refresh user panel balance updates
             const me = d.players.find(p => p.username === document.getElementById('username').value);
             if(me) document.getElementById('player-balance').innerText = me.coins;
 
-            // Sync user activity logs
             const uLog = document.getElementById('user-log');
-            if(uLog) {
-                uLog.innerHTML = d.logs.map(l => `<div>[${l.created_at}] <b>${l.username}</b>: ${l.details}</div>`).join('');
+            if(uLog && d.logs) {
+                uLog.innerHTML = d.logs.map(l => `<div><b>${l.username}</b>: ${l.details}</div>`).join('');
+            }
+            
+            const aLog = document.getElementById('admin-log');
+            if(aLog && d.logs) {
+                aLog.innerHTML = d.logs.map(l => `<div><b>[${l.room_id}] ${l.username}</b>: ${l.details}</div>`).join('');
             }
 
-            // Administrative layout component generation metrics
             const pullTray = document.getElementById('admin-pull-tray');
             if(pullTray) {
                 pullTray.innerHTML = d.pull_requests.length === 0 ? "No active rope requests." : d.pull_requests.map(u => 
@@ -286,24 +286,14 @@
                 ).join('');
             }
 
-            const vList = document.getElementById('admin-voucher-list');
-            if(vList) {
-                vList.innerHTML = d.vouchers.map(v => `<div>Code: <b>${v.code}</b> Value: <b>${v.amount} Coins</b></div>`).join('');
+            const userList = document.getElementById('admin-user-list');
+            if(userList && d.users) {
+                userList.innerHTML = d.users.map(u => `<div>Scope: [${u.room_id}] | <b>${u.username}</b> - Balance: ${u.coins} Coins (${u.online ? '🟢 Online' : '🔴 Offline'})</div>`).join('');
             }
 
-            const uList = document.getElementById('admin-user-list');
-            if(uList) {
-                uList.innerHTML = d.users.map(u => 
-                    `<div style="display:flex; justify-content:space-between; align-items:center; margin:3px 0; border-bottom:1px solid rgba(255,255,255,0.05); padding:4px 0;">
-                        <span>ID: <b>${u.username}</b> | Pass: <b>${u.password}</b> | Coins: <b>${u.coins}</b> [Status: ${u.online?'🟢':'🔴'}]</span>
-                        ${u.is_super_admin ? '' : `<button style="width:auto; padding:2px 6px; background:#ff7675; font-size:11px;" onclick="socket.emit('admin_delete_user', {username:'${u.username}'})">Delete Account</button>`}
-                    </div>`
-                ).join('');
-            }
-
-            const aLog = document.getElementById('admin-log');
-            if(aLog) {
-                aLog.innerHTML = d.logs.map(l => `<div>[${l.created_at}] [${l.action_type}] <b>${l.username}</b>: ${l.details}</div>`).join('');
+            const voucherList = document.getElementById('admin-voucher-list');
+            if(voucherList && d.vouchers) {
+                voucherList.innerHTML = d.vouchers.map(v => `<div>Code: <code>${v.code}</code> Value: <b>${v.amount} Coins</b> (Room: ${v.room_id})</div>`).join('');
             }
         });
     </script>
