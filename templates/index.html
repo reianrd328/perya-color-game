@@ -349,4 +349,15 @@
                         <td style="padding: 8px;"><code style="background:#111; padding:2px 4px;">${u.room_id}</code></td>
                         <td style="padding: 8px; color:#f1c40f; font-weight:bold;">${u.coins}</td>
                         <td style="padding: 8px;">${tier}</td>
-                        <td style
+                        <td style="padding: 8px;">${status}</td>
+                        <td style="padding: 8px;">
+                            <button style="background:#ff7675; color:#fff; border:none; padding:4px 8px; font-size:12px; border-radius:4px; width:auto; margin:0;" onclick="pruneAccount('${u.username}')">Prune</button>
+                        </td>
+                    `;
+                    tableBody.appendChild(tr);
+                });
+            }
+        });
+    </script>
+</body>
+</html>
