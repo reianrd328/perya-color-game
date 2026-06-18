@@ -13,9 +13,12 @@ COLORS = ["red", "blue", "green", "yellow", "white", "pink"]
 
 # Multi-Tenant Memory Matrix
 table_bets = {f"Server_{i}": {} for i in range(1, 11)}
+table_bets["ALL"] = {} # Support Super Admin space
 online_users = {}  # Map: sid -> {username, room_id, is_admin, is_super_admin}
 pull_requests = {f"Server_{i}": [] for i in range(1, 11)}
+pull_requests["ALL"] = []
 withdraw_requests = {f"Server_{i}": [] for i in range(1, 11)}
+withdraw_requests["ALL"] = []
 
 def get_db_connection():
     try:
@@ -27,7 +30,7 @@ def get_db_connection():
             database=os.environ.get("DB_NAME", "perya_color_game"),
             cursorclass=pymysql.cursors.DictCursor,
             connect_timeout=5,
-            ssl={"ssl": {}} # 👈 ADD THIS LINE HERE
+            ssl={"ssl": {}} # 🌟 Required for Cloud Aiven Connection
         )
     except Exception as e:
         print(f"❌ DB Failure: {e}")
@@ -52,15 +55,21 @@ def update_admin_and_user_panels(room_id):
     if not conn: return
     try:
         with conn.cursor() as cursor:
-            cursor.execute("SELECT username, coins, password, is_admin, is_super_admin FROM users WHERE room_id = %s OR is_super_admin = 1", (room_id,))
-            room_users = cursor.fetchall()
-            
-            cursor.execute("SELECT * FROM vouchers WHERE room_id = %s AND is_used = 0", (room_id,))
-            active_vouchers = cursor.fetchall()
-
-            cursor.execute("SELECT * FROM game_logs WHERE room_id = %s ORDER BY id DESC LIMIT 15", (room_id,))
-            logs = cursor.fetchall()
-            
+            if room_id == 'ALL':
+                cursor.execute("SELECT username, coins, password, is_admin, is_super_admin, room_id FROM users")
+                room_users = cursor.fetchall()
+                cursor.execute("SELECT * FROM vouchers WHERE is_used = 0")
+                active_vouchers = cursor.fetchall()
+                cursor.execute("SELECT * FROM game_logs ORDER BY id DESC LIMIT 15")
+                logs = cursor.fetchall()
+            else:
+                cursor.execute("SELECT username, coins, password, is_admin, is_super_admin, room_id FROM users WHERE room_id = %s OR is_super_admin = 1", (room_id,))
+                room_users = cursor.fetchall()
+                cursor.execute("SELECT * FROM vouchers WHERE room_id = %s AND is_used = 0", (room_id,))
+                active_vouchers = cursor.fetchall()
+                cursor.execute("SELECT * FROM game_logs WHERE room_id = %s ORDER BY id DESC LIMIT 15", (room_id,))
+                logs = cursor.fetchall()
+                
         conn.close()
     except Exception as e:
         print(f"Sync Engine Exception: {e}")
@@ -75,7 +84,7 @@ def update_admin_and_user_panels(room_id):
     active_players = []
     room_bets = table_bets.get(room_id, {})
     for sid, data in online_users.items():
-        if data['room_id'] == room_id and not data['is_admin']:
+        if (data['room_id'] == room_id or room_id == 'ALL') and not data['is_admin']:
             name = data['username']
             db_user = next((x for x in room_users if x['username'] == name), {"coins": 0})
             staked = sum(room_bets.get(name, {}).values())
@@ -109,7 +118,8 @@ def handle_join_game(data):
         return emit('login_failed', {"message": "Credentials cannot be empty."})
 
     conn = get_db_connection()
-    if not conn: return emit('login_failed', {"message": "Database Engine Offline."})
+    if not conn: 
+        return emit('login_failed', {"message": "Database Engine Offline. Check SSL/Credentials."})
 
     user = None
     try:
@@ -123,7 +133,6 @@ def handle_join_game(data):
     if not user:
         return emit('login_failed', {"message": "Invalid Username or Password."})
 
-    # Super Admin bypass logic vs Tenant boundary lockdown verification
     is_super = bool(user['is_super_admin'])
     assigned_room = requested_room if is_super else user['room_id']
 
@@ -138,6 +147,8 @@ def handle_join_game(data):
     }
     
     join_room(assigned_room)
+    if assigned_room not in table_bets:
+        table_bets[assigned_room] = {}
     if username not in table_bets[assigned_room]:
         table_bets[assigned_room][username] = {c: 0 for c in COLORS}
 
@@ -208,15 +219,11 @@ def handle_admin_rope_action(data):
         pull_requests[room_id].remove(target_user)
         
     if approved:
-        # Trigger rolling matrix evaluation
         final_dice = [random.choice(COLORS) for _ in range(3)]
-        
-        # Calculate winning matrices & apply updates
         conn = get_db_connection()
         if conn:
             try:
                 with conn.cursor() as cursor:
-                    # Resolve stakes across all table participants
                     for player, bets in list(table_bets[room_id].items()):
                         p_payout = 0
                         p_return_stake = 0
@@ -224,7 +231,6 @@ def handle_admin_rope_action(data):
                             if amt > 0:
                                 matches = final_dice.count(color)
                                 if matches > 0:
-                                    # 1:1 base payload return per match frequency
                                     p_payout += (amt * matches)
                                     p_return_stake += amt
                         
@@ -232,7 +238,6 @@ def handle_admin_rope_action(data):
                         if total_refund > 0:
                             cursor.execute("UPDATE users SET coins = coins + %s WHERE username = %s", (total_refund, player))
                         
-                        # Wipe bet vector clean for subsequent game turns
                         table_bets[room_id][player] = {c: 0 for c in COLORS}
                 conn.commit()
                 conn.close()
@@ -282,7 +287,6 @@ def handle_admin_withdraw_action(data):
     amount = int(data.get('amount', 0))
     approved = data.get('approved', False)
 
-    # Search pattern execution across arrays
     match = next((x for x in withdraw_requests[room_id] if x['username'] == target_user and x['amount'] == amount), None)
     if match:
         withdraw_requests[room_id].remove(match)
@@ -327,7 +331,7 @@ def handle_redeem_voucher(data):
     if not conn: return
     try:
         with conn.cursor() as cursor:
-            cursor.execute("SELECT * FROM vouchers WHERE code = %s AND room_id = %s AND is_used = 0", (code, room_id))
+            cursor.execute("SELECT * FROM vouchers WHERE code = %s AND (room_id = %s OR room_id = 'ALL') AND is_used = 0", (code, room_id))
             v = cursor.fetchone()
             if v:
                 cursor.execute("UPDATE vouchers SET is_used = 1, used_by = %s WHERE id = %s", (username, v['id']))
@@ -364,7 +368,7 @@ def handle_admin_create_user(data):
                 )
             conn.commit()
             conn.close()
-            write_log(room_id, admin_ctx['username'], "User Setup", f"Enrolled profile account: {username} (Type Role Admin Status: {bool(make_admin)})")
+            write_log(room_id, admin_ctx['username'], "User Setup", f"Enrolled profile account: {username}")
         except Exception as e:
             emit('admin_error', {"message": "Username is already registered globally."})
     update_admin_and_user_panels(room_id)
@@ -379,10 +383,13 @@ def handle_admin_delete_user(data):
     conn = get_db_connection()
     if conn:
         with conn.cursor() as cursor:
-            cursor.execute("DELETE FROM users WHERE username = %s AND room_id = %s AND is_super_admin = 0", (target, room_id))
+            if room_id == 'ALL':
+                cursor.execute("DELETE FROM users WHERE username = %s AND is_super_admin = 0", (target,))
+            else:
+                cursor.execute("DELETE FROM users WHERE username = %s AND room_id = %s AND is_super_admin = 0", (target, room_id))
         conn.commit()
         conn.close()
-        write_log(room_id, admin_ctx['username'], "Account Pruned", f"Deleted account record: {target} from engine partition.")
+        write_log(room_id, admin_ctx['username'], "Account Pruned", f"Deleted account record: {target}")
     update_admin_and_user_panels(room_id)
 
 @socketio.on('disconnect')
