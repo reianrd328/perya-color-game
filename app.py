@@ -26,7 +26,8 @@ def get_db_connection():
             password=os.environ.get("DB_PASSWORD", ""),
             database=os.environ.get("DB_NAME", "perya_color_game"),
             cursorclass=pymysql.cursors.DictCursor,
-            connect_timeout=5
+            connect_timeout=5,
+            ssl={"ssl": {}} # 👈 ADD THIS LINE HERE
         )
     except Exception as e:
         print(f"❌ DB Failure: {e}")
