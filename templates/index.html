@@ -41,12 +41,12 @@
         button:hover { background: #fbc531; }
         .flex-grid { display: flex; gap: 15px; flex-wrap: wrap; }
         .col { flex: 1; min-width: 250px; }
-
+        
         /* 3D Dice Layout */
         .dice-container { display: flex; justify-content: center; gap: 30px; margin: 30px auto; min-height: 100px; }
         .cube { width: 80px; height: 80px; position: relative; transform-style: preserve-3d; transition: transform 0.5s ease-out; }
         .face { position: absolute; width: 80px; height: 80px; border: 2px solid #000; border-radius: 12px; opacity: 0.95; }
-
+        
         /* 3D Face Transforms */
         .f-red    { background: #ff2a2a; transform: rotateY(0deg) translateZ(40px); }
         .f-blue   { background: #2a75ff; transform: rotateY(90deg) translateZ(40px); }
@@ -68,7 +68,7 @@
         .b-red { background: #ff2a2a; color: white; } .b-blue { background: #2a75ff; color: white; }
         .b-green { background: #2aff53; } .b-yellow { background: #ffeb2a; }
         .b-white { background: #ffffff; } .b-pink { background: #ff2ae2; color: white; }
-
+        
         .hidden { display: none !important; }
         .log-box { background: rgba(0,0,0,0.1); padding: 10px; height: 150px; overflow-y: auto; border-radius: 5px; font-size: 13px; border: 1px solid var(--border-color); }
         .nav-header { display: flex; justify-content: space-between; align-items: center; max-width: 800px; margin: 0 auto; }
@@ -109,7 +109,7 @@
         </div>
         <p id="display-user" style="margin: 5px 0 0 0; opacity: 0.7;">Player: ---</p>
         <hr style="border: 0; border-top: 1px solid var(--border-color);">
-
+        
         <div class="dice-container">
             <div class="cube" id="dice1"><div class="face f-red"></div><div class="face f-blue"></div><div class="face f-green"></div><div class="face f-yellow"></div><div class="face f-white"></div><div class="face f-pink"></div></div>
             <div class="cube" id="dice2"><div class="face f-red"></div><div class="face f-blue"></div><div class="face f-green"></div><div class="face f-yellow"></div><div class="face f-white"></div><div class="face f-pink"></div></div>
@@ -136,7 +136,7 @@
                 <button onclick="submitWithdraw()" style="background: #e74c3c; color: white; margin-top:5px;">💰 Request Cashout</button>
             </div>
         </div>
-
+        
         <div style="margin-top: 15px;">
             <input type="text" id="voucher_code" placeholder="Enter Voucher Code" style="width: 70%; margin: 0;">
             <button onclick="claimVoucher()" style="width: 28%; margin: 0; background: #9b59b6; color: white;">🎟️ Claim</button>
@@ -154,7 +154,7 @@
         <div class="flex-grid">
             <div class="col">
                 <button style="background: #e1b12c; color: #000; font-size: 18px;" onclick="adminTriggerRoll()">🔔 PULL THE ROPE NOW</button>
-
+                
                 <h3>Rope Pull Requests:</h3>
                 <div id="pull-request-list" class="log-box" style="height: 100px;"></div>
 
@@ -223,7 +223,7 @@
             currentRoomId = document.getElementById('room_id').value;
 
             if(!u || !p) return alert("Please fill up credentials.");
-
+            
             socket.emit('join_game', { username: u, password: p, room_id: currentRoomId });
         }
 
@@ -292,7 +292,7 @@
         // Live Operational State Synchronization Engine
         socket.on('admin_dashboard_update', function(data) {
             document.getElementById('admin-circulation').innerText = `Total Server Liquidity: ${data.total_coins} Coins`;
-
+            
             // Render Pull Hooks
             const pullBox = document.getElementById('pull-request-list');
             pullBox.innerHTML = data.pull_requests.length === 0 ? "No pending pull approvals." : data.pull_requests.map(u => 
@@ -348,7 +348,7 @@
             document.getElementById('dice1').classList.add('spinning');
             document.getElementById('dice2').classList.add('spinning');
             document.getElementById('dice3').classList.add('spinning');
-
+            
             const btn = document.getElementById('pullRopeButton');
             btn.disabled = true;
             btn.innerText = "⏳ Spinning Rope Engine...";
@@ -357,4 +357,33 @@
 
         socket.on('dice_spin_stop', function(data) {
             // Remove animation instantly
-       
+            document.getElementById('dice1').classList.remove('spinning');
+            document.getElementById('dice2').classList.remove('spinning');
+            document.getElementById('dice3').classList.remove('spinning');
+
+            // Apply specific structural transform coordinates to render exact winning faces
+            document.getElementById('dice1').style.transform = rotationMap[data.results[0]];
+            document.getElementById('dice2').style.transform = rotationMap[data.results[1]];
+            document.getElementById('dice3').style.transform = rotationMap[data.results[2]];
+
+            // Re-enable button state
+            const btn = document.getElementById('pullRopeButton');
+            btn.disabled = false;
+            btn.innerText = "🙋‍♂️ Request to Pull Rope";
+            btn.style.opacity = "1";
+
+            // Clear inputs
+            document.getElementById('bet_red').value = 0;
+            document.getElementById('bet_blue').value = 0;
+            document.getElementById('bet_green').value = 0;
+            document.getElementById('bet_yellow').value = 0;
+            document.getElementById('bet_white').value = 0;
+            document.getElementById('bet_pink').value = 0;
+        });
+
+        function logout() {
+            window.location.reload();
+        }
+    </script>
+</body>
+</html>
