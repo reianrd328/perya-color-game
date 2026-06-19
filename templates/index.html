@@ -1,149 +1,91 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enterprise Multi-Server Color Engine</title>
+    <title>Live Multi-Server Perya Game</title>
     <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js"></script>
     <style>
-        :root[data-theme="dark"] {
-            --bg: #121212; --panel: #1e1e1e; --text: #ffffff; --border: #333;
+        :root {
+            --bg-color: #1a1a1a;
+            --panel-color: #222222;
+            --text-color: #ffffff;
+            --border-color: #444444;
         }
-        :root[data-theme="light"] {
-            --bg: #f5f6fa; --panel: #ffffff; --text: #2f3640; --border: #dcdde1;
+        .light-theme {
+            --bg-color: #f5f6fa;
+            --panel-color: #ffffff;
+            --text-color: #2f3640;
+            --border-color: #dcdde1;
         }
-        body { background: var(--bg); color: var(--text); font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 10px; transition: 0.2s; }
-        .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; max-width: 700px; margin: 15px auto; padding: 20px; box-sizing: border-box; }
-        .flex-grid { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
-        input, select, button { padding: 12px; margin: 5px 0; border-radius: 6px; border: 1px solid var(--border); width: 100%; box-sizing: border-box; font-size: 16px; }
-        button { background: #e1b12c; color: #000; font-weight: bold; cursor: pointer; border: none; }
+        body { 
+            background-color: var(--bg-color); 
+            color: var(--text-color); 
+            font-family: sans-serif; 
+            text-align: center; 
+            padding: 20px;
+            transition: background 0.3s, color 0.3s;
+        }
+        .panel { 
+            background: var(--panel-color); 
+            max-width: 800px; 
+            margin: 20px auto; 
+            padding: 25px; 
+            border-radius: 10px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            border: 1px solid var(--border-color);
+            text-align: left;
+        }
+        select, input, button { padding: 10px; margin: 8px 0; font-size: 15px; border-radius: 5px; border: 1px solid var(--border-color); width: 100%; box-sizing: border-box; background: var(--panel-color); color: var(--text-color); }
+        button { background: #e1b12c; color: #000; font-weight: bold; cursor: pointer; border: none; transition: 0.2s; }
         button:hover { background: #fbc531; }
+        .flex-grid { display: flex; gap: 15px; flex-wrap: wrap; }
+        .col { flex: 1; min-width: 250px; }
+
+        /* 3D Dice Layout */
+        .dice-container { display: flex; justify-content: center; gap: 30px; margin: 30px auto; min-height: 100px; }
+        .cube { width: 80px; height: 80px; position: relative; transform-style: preserve-3d; transition: transform 0.5s ease-out; }
+        .face { position: absolute; width: 80px; height: 80px; border: 2px solid #000; border-radius: 12px; opacity: 0.95; }
+
+        /* 3D Face Transforms */
+        .f-red    { background: #ff2a2a; transform: rotateY(0deg) translateZ(40px); }
+        .f-blue   { background: #2a75ff; transform: rotateY(90deg) translateZ(40px); }
+        .f-green  { background: #2aff53; transform: rotateY(180deg) translateZ(40px); }
+        .f-yellow { background: #ffeb2a; transform: rotateY(-90deg) translateZ(40px); }
+        .f-white  { background: #ffffff; transform: rotateX(90deg) translateZ(40px); }
+        .f-pink   { background: #ff2ae2; transform: rotateX(-90deg) translateZ(40px); }
+
+        .spinning { animation: tumble 0.15s infinite linear; }
+        @keyframes tumble {
+            0% { transform: rotateX(0deg) rotateY(0deg); }
+            100% { transform: rotateX(360deg) rotateY(360deg); }
+        }
+
+        /* Betting Table Styles */
+        .betting-table { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 20px 0; }
+        .bet-card { padding: 15px; border-radius: 8px; text-align: center; color: #000; font-weight: bold; cursor: pointer; border: 3px solid transparent; }
+        .bet-card input { width: 70%; text-align: center; margin-top: 5px; color: #000; background: #fff; }
+        .b-red { background: #ff2a2a; color: white; } .b-blue { background: #2a75ff; color: white; }
+        .b-green { background: #2aff53; } .b-yellow { background: #ffeb2a; }
+        .b-white { background: #ffffff; } .b-pink { background: #ff2ae2; color: white; }
+
         .hidden { display: none !important; }
-        
-        .dice-container { display: flex; justify-content: center; gap: 15px; margin: 20px 0; }
-        .cube-shell { width: 70px; height: 70px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; text-transform: uppercase; border: 2px solid #000; text-shadow: 1px 1px 2px #000; color: #fff;}
-        
-        .red { background: #ff2a2a; } .blue { background: #2a75ff; } .green { background: #2aff53; }
-        .yellow { background: #ffeb2a; color: #000; text-shadow: none; } .white { background: #ffffff; color: #000; text-shadow: none; } .pink { background: #ff2ae2; }
-
-        .spinning-active { animation: uniformSpin 0.15s linear infinite; box-shadow: 0 0 15px #e1b12c; border-color: #e1b12c; }
-        @keyframes uniformSpin {
-            0% { transform: rotate(0deg) scale(1); }
-            50% { transform: rotate(180deg) scale(1.05); }
-            100% { transform: rotate(360deg) scale(1); }
-        }
-
-        .bet-box { min-width: 90px; flex: 1; padding: 10px; text-align: center; border-radius: 8px; cursor: pointer; color:#fff; font-weight:bold;}
-        .log-box { background: rgba(0,0,0,0.1); padding: 10px; max-height: 150px; overflow-y: auto; text-align: left; font-size: 13px; font-family: monospace; border-radius: 6px; }
-        .ui-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
-        
-        @media(max-width: 480px) {
-            input, select, button { font-size: 14px; padding: 10px; }
-            .cube-shell { width: 55px; height: 55px; font-size: 11px; }
-        }
+        .log-box { background: rgba(0,0,0,0.1); padding: 10px; height: 150px; overflow-y: auto; border-radius: 5px; font-size: 13px; border: 1px solid var(--border-color); }
+        .nav-header { display: flex; justify-content: space-between; align-items: center; max-width: 800px; margin: 0 auto; }
+        .badge { background: #e1b12c; color: #000; padding: 3px 8px; border-radius: 3px; font-size: 12px; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <div class="panel">
-        <div class="ui-header">
-            <span>⚙️ Skin Configuration Engine</span>
-            <button style="width: auto; padding: 5px 10px; font-size: 12px;" onclick="toggleSkinMode()">🌗 Shift Theme</button>
-        </div>
+    <div class="nav-header">
+        <button onclick="toggleTheme()" style="width: auto; margin: 0;">🌓 Toggle Mode</button>
+        <h1 style="margin: 0; font-size: 24px;">🎰 Perya Engine 🎰</h1>
+        <button id="btn-logout" class="hidden" onclick="logout()" style="width: auto; margin: 0; background: #e74c3c; color: #fff;">Logout</button>
     </div>
 
     <div id="login-panel" class="panel">
-        <h2>🎰 Core Perya Matrix Login</h2>
-        <label>Target Operational Server Network Scope:</label>
-        <select id="room_id"></select>
-        <input type="text" id="username" placeholder="Profile Username">
-        <input type="password" id="password" placeholder="Access Verification Password">
-        <button onclick="submitLogin()">Authorize Connection Session</button>
-    </div>
-
-    <div id="game-board" class="panel hidden">
-        <div class="ui-header">
-            <div><h3 id="display-room">Room: --</h3><h4 id="display-user">Player: --</h4></div>
-            <button style="background:#ff7675; width:auto;" onclick="logout()">Exit System</button>
-        </div>
-        <hr style="border:0; border-top:1px solid var(--border);">
-        <h2>Wallet Capital: <span id="player-balance" style="color:#4cd137;">0</span> Coins</h2>
-
-        <div class="dice-container">
-            <div id="dice1" class="cube-shell white">D1</div>
-            <div id="dice2" class="cube-shell white">D2</div>
-            <div id="dice3" class="cube-shell white">D3</div>
-        </div>
-
-        <button id="btn-request-pull" onclick="socket.emit('request_pull')">🙋‍♂️ Request Rope Pull Action</button>
-        
-        <h3>Staking Board Dashboard Matrix</h3>
-        <div class="flex-grid">
-            <input type="number" id="bet-amount" value="10" min="1" style="max-width:150px;" placeholder="Bet Val">
-        </div>
-        <div class="flex-grid" style="margin-top:10px;">
-            <div class="bet-box red" onclick="placeBet('red')">Red<br><span id="b-red">0</span></div>
-            <div class="bet-box blue" onclick="placeBet('blue')">Blue<br><span id="b-blue">0</span></div>
-            <div class="bet-box green" onclick="placeBet('green')">Green<br><span id="b-green">0</span></div>
-            <div class="bet-box yellow" onclick="placeBet('yellow')">Yellow<br><span id="b-yellow">0</span></div>
-            <div class="bet-box white" onclick="placeBet('white')" style="color:#000;">White<br><span id="b-white">0</span></div>
-            <div class="bet-box pink" onclick="placeBet('pink')">Pink<br><span id="b-pink">0</span></div>
-        </div>
-
-        <h3>Redeem Ledger Voucher</h3>
-        <div style="display:flex; gap:10px;">
-            <input type="text" id="v-code" placeholder="PERYA-XXXXXX">
-            <button style="width:auto;" onclick="redeemVoucher()">Apply</button>
-        </div>
-        
-        <h3>Withdraw Revenue Allocation</h3>
-        <div style="display:flex; gap:10px;">
-            <input type="number" id="w-amount" placeholder="Amount">
-            <button style="width:auto; background:#9c88ff; color:#fff;" onclick="requestWithdraw()">Submit Cashout Request</button>
-        </div>
-
-        <h3>Operational Activity Logs</h3>
-        <div id="user-log" class="log-box"></div>
-    </div>
-
-    <div id="admin-panel" class="panel hidden" style="border: 2px solid #e1b12c;">
-        <div class="ui-header">
-            <h2>🛠️ Server Operator Command Center</h2>
-            <button style="background:#ff7675; width:auto;" onclick="logout()">Exit Deck</button>
-        </div>
-        <h3 id="admin-room-title" style="color:#e1b12c;">Managing Server Scope: --</h3>
-        
-        <h3>Rope Pull Verification Requests</h3>
-        <div id="admin-pull-tray"></div>
-
-        <h3>Pending Balance Settlement Requests</h3>
-        <div id="admin-withdraw-tray"></div>
-
-        <h3>Generate Asset Capital Voucher Tokens</h3>
-        <div class="flex-grid">
-            <button style="width:auto;" onclick="genVoucher(5)">+5</button>
-            <button style="width:auto;" onclick="genVoucher(10)">+10</button>
-            <button style="width:auto;" onclick="genVoucher(20)">+20</button>
-            <button style="width:auto;" onclick="genVoucher(100)">+100</button>
-            <button style="width:auto;" onclick="genVoucher(500)">+500</button>
-            <button style="width:auto;" onclick="genVoucher(1000)">+1000</button>
-        </div>
-        <div style="display:flex; gap:10px; margin-top:5px;">
-            <input type="number" id="custom-v-amount" placeholder="Custom Token Amount">
-            <button style="width:auto;" onclick="genVoucher(document.getElementById('custom-v-amount').value)">Emit Custom Token</button>
-        </div>
-        <div id="admin-voucher-list" class="log-box" style="margin-top:5px;"></div>
-
-        <h3>Enroll Multi-Tenant Profiles</h3>
-        <input type="text" id="new-user" placeholder="Username Account ID">
-        <input type="password" id="new-pass" placeholder="Authorization Password Path">
-        <select id="new-role">
-            <option value="0">Standard Player Tier Profile</option>
-            <option value="1">Local Server Admin Officer</option>
-        </select>
-        
-        <label style="font-size: 13px; margin-top: 5px; display: block;">Assign Target Room Scope:</label>
-        <select id="new-user-room">
+        <h3>Choose Your Server Room Group</h3>
+        <select id="room_id">
             <option value="Server_1">Sub-Server Admin #1 Group</option>
             <option value="Server_2">Sub-Server Admin #2 Group</option>
             <option value="Server_3">Sub-Server Admin #3 Group</option>
@@ -155,209 +97,264 @@
             <option value="Server_9">Sub-Server Admin #9 Group</option>
             <option value="Server_10">Sub-Server Admin #10 Group</option>
         </select>
-        <button style="background:#4cd137; color:#fff;" onclick="createUser()">Register Core Profile Entry</button>
+        <input type="text" id="loginUsername" placeholder="Username">
+        <input type="password" id="loginPassword" placeholder="Password">
+        <button type="button" onclick="submitLogin()">Login to Selected Table</button>
+    </div>
 
-        <h3>Registered Network Accounts Ledger</h3>
-        <div style="overflow-x: auto; margin: 10px 0;">
-            <table border="1" style="width:100%; border-collapse: collapse; text-align: left; background: #222; color: #fff; border-color: var(--border);">
-                <thead>
-                    <tr style="background: #333;">
-                        <th style="padding: 8px;">Username</th>
-                        <th style="padding: 8px;">Bound Room Scope</th>
-                        <th style="padding: 8px;">Balance (Coins)</th>
-                        <th style="padding: 8px;">Account Tier</th>
-                        <th style="padding: 8px;">Status</th>
-                        <th style="padding: 8px;">Management Action</th>
-                    </tr>
-                </thead>
-                <tbody id="admin-accounts-table">
-                    </tbody>
-            </table>
+    <div id="game-board" class="panel hidden">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2 id="display-room" style="color: #e1b12c; margin: 0;">Connected Server</h2>
+            <h3 id="playerBalanceDisplay" style="margin: 0; background: #2ecc71; color: white; padding: 5px 10px; border-radius: 5px;">0 Coins</h3>
+        </div>
+        <p id="display-user" style="margin: 5px 0 0 0; opacity: 0.7;">Player: ---</p>
+        <hr style="border: 0; border-top: 1px solid var(--border-color);">
+
+        <div class="dice-container">
+            <div class="cube" id="dice1"><div class="face f-red"></div><div class="face f-blue"></div><div class="face f-green"></div><div class="face f-yellow"></div><div class="face f-white"></div><div class="face f-pink"></div></div>
+            <div class="cube" id="dice2"><div class="face f-red"></div><div class="face f-blue"></div><div class="face f-green"></div><div class="face f-yellow"></div><div class="face f-white"></div><div class="face f-pink"></div></div>
+            <div class="cube" id="dice3"><div class="face f-red"></div><div class="face f-blue"></div><div class="face f-green"></div><div class="face f-yellow"></div><div class="face f-white"></div><div class="face f-pink"></div></div>
         </div>
 
-        <h3>Unified Room Engine Activity Trace Logs</h3>
-        <div id="admin-log" class="log-box"></div>
+        <h3>Place Your Color Bets:</h3>
+        <div class="betting-table">
+            <div class="bet-card b-red">Red<br><input type="number" id="bet_red" value="0" min="0"></div>
+            <div class="bet-card b-blue">Blue<br><input type="number" id="bet_blue" value="0" min="0"></div>
+            <div class="bet-card b-green">Green<br><input type="number" id="bet_green" value="0" min="0"></div>
+            <div class="bet-card b-yellow">Yellow<br><input type="number" id="bet_yellow" value="0" min="0"></div>
+            <div class="bet-card b-white">White<br><input type="number" id="bet_white" value="0" min="0"></div>
+            <div class="bet-card b-pink">Pink<br><input type="number" id="bet_pink" value="0" min="0"></div>
+        </div>
+        <button onclick="submitBets()" style="background: #2ecc71; color: #fff;">💾 Save & Lock Bets</button>
+
+        <div class="flex-grid" style="margin-top: 15px;">
+            <div class="col">
+                <button id="pullRopeButton" onclick="requestPull()">🙋‍♂️ Request to Pull Rope</button>
+            </div>
+            <div class="col">
+                <input type="number" id="withdraw_amount" placeholder="Withdraw Amount" style="margin:0;">
+                <button onclick="submitWithdraw()" style="background: #e74c3c; color: white; margin-top:5px;">💰 Request Cashout</button>
+            </div>
+        </div>
+
+        <div style="margin-top: 15px;">
+            <input type="text" id="voucher_code" placeholder="Enter Voucher Code" style="width: 70%; margin: 0;">
+            <button onclick="claimVoucher()" style="width: 28%; margin: 0; background: #9b59b6; color: white;">🎟️ Claim</button>
+        </div>
+
+        <h3>Your Game History Logs:</h3>
+        <div id="user-logs" class="log-box"></div>
+    </div>
+
+    <div id="admin-panel" class="panel hidden" style="border: 2px solid #e1b12c;">
+        <h2 id="admin-room-title" style="color: #e1b12c; margin: 0;">🛠️ Control Deck: Server</h2>
+        <h4 id="admin-circulation" style="margin: 5px 0;">Total Server Liquidity: 0 Coins</h4>
+        <hr style="border: 0; border-top: 1px solid var(--border-color);">
+
+        <div class="flex-grid">
+            <div class="col">
+                <button style="background: #e1b12c; color: #000; font-size: 18px;" onclick="adminTriggerRoll()">🔔 PULL THE ROPE NOW</button>
+
+                <h3>Rope Pull Requests:</h3>
+                <div id="pull-request-list" class="log-box" style="height: 100px;"></div>
+
+                <h3>Pending Cashout Orders:</h3>
+                <div id="withdraw-request-list" class="log-box" style="height: 110px;"></div>
+            </div>
+
+            <div class="col">
+                <h3>Voucher System Engine:</h3>
+                <select id="voucher_preset" style="margin:0;">
+                    <option value="5">5 Coins</option>
+                    <option value="10">10 Coins</option>
+                    <option value="20">20 Coins</option>
+                    <option value="100">100 Coins</option>
+                    <option value="200">200 Coins</option>
+                    <option value="500">500 Coins</option>
+                    <option value="1000">1000 Coins</option>
+                    <option value="custom">Custom Value</option>
+                </select>
+                <input type="number" id="voucher_custom_val" placeholder="Custom Amount" class="hidden">
+                <button onclick="generateVoucher()" style="background: #9b59b6; color: #fff;">🎫 Generate Voucher Token</button>
+                <div id="voucher-output" style="font-weight: bold; color: #2ecc71; margin-top: 5px;"></div>
+            </div>
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid var(--border-color);">
+        <h3>Add User to This Server Scope:</h3>
+        <div class="flex-grid">
+            <input type="text" id="newPlayerUsername" placeholder="Player Username" style="flex:1;">
+            <button onclick="createNewPlayer()" style="background: #2ecc71; color: white; width: auto; margin:0 8px;">Create Profile</button>
+        </div>
+
+        <h3>Registered Server Enrollees:</h3>
+        <div id="admin-users-list" class="log-box" style="height: 180px;"></div>
+
+        <h3>Global System Action Audit Logs:</h3>
+        <div id="admin-logs" class="log-box" style="height: 120px;"></div>
     </div>
 
     <script>
-        const roomSelect = document.getElementById('room_id');
-        
-        let superOpt = document.createElement('option');
-        superOpt.value = "ALL"; 
-        superOpt.innerText = "Global Core Network Matrix (Super Admin)";
-        roomSelect.appendChild(superOpt);
-
-        for(let i=1; i<=10; i++) {
-            let opt = document.createElement('option');
-            opt.value = `Server_${i}`; opt.innerText = `Sub-Server Admin #${i} Group`;
-            roomSelect.appendChild(opt);
-        }
-
         const socket = io();
-        let currentRoom = "";
+        let currentRoomId = "Server_1";
+        let myUsername = "";
 
-        function toggleSkinMode() {
-            const html = document.documentElement;
-            html.setAttribute('data-theme', html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+        // UI Target Mappings
+        const rotationMap = {
+            "red": "rotateY(0deg)",
+            "blue": "rotateY(-90deg)",
+            "green": "rotateY(-180deg)",
+            "yellow": "rotateY(90deg)",
+            "white": "rotateX(-90deg)",
+            "pink": "rotateX(90deg)"
+        };
+
+        document.getElementById('voucher_preset').addEventListener('change', function() {
+            document.getElementById('voucher_custom_val').classList.toggle('hidden', this.value !== 'custom');
+        });
+
+        function toggleTheme() {
+            document.body.classList.toggle('light-theme');
         }
 
         function submitLogin() {
-            socket.emit('join_game', {
-                username: document.getElementById('username').value,
-                password: document.getElementById('password').value,
-                room_id: document.getElementById('room_id').value
-            });
+            const u = document.getElementById('loginUsername').value.trim();
+            const p = document.getElementById('loginPassword').value;
+            currentRoomId = document.getElementById('room_id').value;
+
+            if(!u || !p) return alert("Please fill up credentials.");
+
+            socket.emit('join_game', { username: u, password: p, room_id: currentRoomId });
         }
 
-        function logout() { window.location.reload(); }
-
-        function placeBet(color) {
-            const amt = parseInt(document.getElementById('bet-amount').value);
-            socket.emit('place_bet', { color: color, amount: amt });
-        }
-
-        function redeemVoucher() {
-            socket.emit('redeem_voucher', { code: document.getElementById('v-code').value });
-            document.getElementById('v-code').value = "";
-        }
-
-        function requestWithdraw() {
-            socket.emit('request_withdraw', { amount: parseInt(document.getElementById('w-amount').value) });
-            document.getElementById('w-amount').value = "";
-        }
-
-        function genVoucher(val) { if(val > 0) socket.emit('create_voucher', { amount: parseInt(val) }); }
-        
-        function createUser() {
-            socket.emit('admin_create_user', {
-                username: document.getElementById('new-user').value,
-                password: document.getElementById('new-pass').value,
-                is_admin: parseInt(document.getElementById('new-role').value),
-                target_room: document.getElementById('new-user-room').value
-            });
-            document.getElementById('new-user').value = ""; document.getElementById('new-pass').value = "";
-        }
-
-        function pruneAccount(targetUser) {
-            if (confirm(`Are you absolutely sure you want to drop and prune profile configuration for: ${targetUser}?`)) {
-                socket.emit('admin_delete_user', { username: targetUser });
-            }
-        }
-
-        // Clean event listeners replacing unhandled promise catch mechanisms
-        socket.on('login_failed', d => alert(d.message));
-        socket.on('admin_error', d => alert("❌ Operation failed: " + d.message));
-        socket.on('bet_failed', d => alert(d.message));
-        socket.on('withdraw_failed', d => alert(d.message));
-        socket.on('voucher_failed', d => alert(d.message));
-        socket.on('voucher_redeemed', d => alert(d.message));
-
-        socket.on('user_status', d => {
+        socket.on('user_status', function(data) {
+            myUsername = data.username;
             document.getElementById('login-panel').classList.add('hidden');
-            currentRoom = d.room_id;
-            if(d.is_admin || d.is_super_admin) {
+            document.getElementById('btn-logout').classList.remove('hidden');
+
+            if(data.is_admin) {
                 document.getElementById('admin-panel').classList.remove('hidden');
-                document.getElementById('admin-room-title').innerText = "Managing Server Scope: " + currentRoom;
+                document.getElementById('game-board').classList.add('hidden');
+                document.getElementById('admin-room-title').innerText = "🛠️ Control Deck: " + data.room_id.replace('_', ' ');
             } else {
                 document.getElementById('game-board').classList.remove('hidden');
-                document.getElementById('display-room').innerText = "Connected Room: " + currentRoom;
-                document.getElementById('display-user').innerText = "Player: " + d.username;
-                document.getElementById('player-balance').innerText = d.coins;
+                document.getElementById('admin-panel').classList.add('hidden');
+                document.getElementById('display-room').innerText = "Connected: " + data.room_id.replace('_', ' ');
+                document.getElementById('display-user').innerText = "Player Account: " + data.username;
+                document.getElementById('playerBalanceDisplay').innerText = data.coins + " Coins";
             }
         });
 
-        socket.on('bet_success', d => {
-            document.getElementById('player-balance').innerText = d.coins;
-            for(let c in d.bets) { document.getElementById(`b-${c}`).innerText = d.bets[c]; }
+        socket.on('login_failed', data => alert(data.message));
+        socket.on('notification', data => alert(data.message));
+
+        // Betting System Logic
+        function submitBets() {
+            const bets = {
+                red: parseInt(document.getElementById('bet_red').value) || 0,
+                blue: parseInt(document.getElementById('bet_blue').value) || 0,
+                green: parseInt(document.getElementById('bet_green').value) || 0,
+                yellow: parseInt(document.getElementById('bet_yellow').value) || 0,
+                white: parseInt(document.getElementById('bet_white').value) || 0,
+                pink: parseInt(document.getElementById('bet_pink').value) || 0
+            };
+            socket.emit('place_bets', { bets: bets });
+        }
+
+        function requestPull() { socket.emit('request_pull'); }
+        function submitWithdraw() {
+            const amt = parseInt(document.getElementById('withdraw_amount').value);
+            if(!amt || amt <= 0) return alert("Enter structural cashout value.");
+            socket.emit('request_withdraw', { amount: amt });
+        }
+        function claimVoucher() {
+            const code = document.getElementById('voucher_code').value.trim();
+            if(!code) return;
+            socket.emit('claim_voucher', { token: code });
+        }
+
+        // Admin Action Handlers
+        function adminTriggerRoll() { socket.emit('admin_pull_rope'); }
+        function createNewPlayer() {
+            const user = document.getElementById('newPlayerUsername').value.trim();
+            if(!user) return;
+            socket.emit('create_player', { username: user });
+        }
+        function generateVoucher() {
+            const preset = document.getElementById('voucher_preset').value;
+            const amt = preset === 'custom' ? parseInt(document.getElementById('voucher_custom_val').value) : parseInt(preset);
+            socket.emit('generate_voucher', { amount: amt });
+        }
+        function resolvePull(user, action) { socket.emit('resolve_pull_request', { target_user: user, action: action }); }
+        function resolveWithdraw(id, action) { socket.emit('resolve_withdraw_request', { transfer_id: id, action: action }); }
+        function deleteUser(user) { if(confirm(`Delete ${user}?`)) socket.emit('delete_user_profile', { target_user: user }); }
+
+        // Live Operational State Synchronization Engine
+        socket.on('admin_dashboard_update', function(data) {
+            document.getElementById('admin-circulation').innerText = `Total Server Liquidity: ${data.total_coins} Coins`;
+
+            // Render Pull Hooks
+            const pullBox = document.getElementById('pull-request-list');
+            pullBox.innerHTML = data.pull_requests.length === 0 ? "No pending pull approvals." : data.pull_requests.map(u => 
+                `<div style="display:flex; justify-content:space-between; margin-bottom:5px; background:rgba(255,255,255,0.05); padding:5px; border-radius:4px;">
+                    <span>👤 ${u}</span>
+                    <div>
+                        <button onclick="resolvePull('${u}','approve')" style="width:auto; padding:2px 8px; margin:0 2px; background:#2ecc71; color:white;">✔</button>
+                        <button onclick="resolvePull('${u}','disapprove')" style="width:auto; padding:2px 8px; margin:0 2px; background:#e74c3c; color:white;">❌</button>
+                    </div>
+                </div>`
+            ).join('');
+
+            // Render Cashout Tables
+            const cashBox = document.getElementById('withdraw-request-list');
+            cashBox.innerHTML = data.pending_withdraws.length === 0 ? "No structural withdraw tokens requested." : data.pending_withdraws.map(w => 
+                `<div style="display:flex; justify-content:space-between; margin-bottom:5px; background:rgba(255,255,255,0.05); padding:5px; border-radius:4px; font-size:12px;">
+                    <span>🏷️ ${w.username} (${w.amount}c)</span>
+                    <div>
+                        <button onclick="resolveWithdraw('${w.id}','approve')" style="width:auto; padding:2px 5px; margin:0 2px; background:#2ecc71; color:white;">✔</button>
+                        <button onclick="resolveWithdraw('${w.id}','disapprove')" style="width:auto; padding:2px 5px; margin:0 2px; background:#e74c3c; color:white;">❌</button>
+                    </div>
+                </div>`
+            ).join('');
+
+            // Render User Profiles Box
+            const userBox = document.getElementById('admin-users-list');
+            userBox.innerHTML = data.users.map(u => 
+                `<div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.05); padding:4px 0;">
+                    <span><b>${u.username}</b> [${u.password}] - ${u.coins}c ${u.is_admin ? '<span class="badge">ADMIN</span>':''}</span>
+                    ${!u.is_admin ? `<button onclick="deleteUser('${u.username}')" style="width:auto; background:#e74c3c; color:white; padding:2px 8px; margin:0;">Delete</button>` : ''}
+                </div>`
+            ).join('');
         });
 
-        socket.on('rope_spin_broadcast', d => {
-            const d1 = document.getElementById('dice1'), d2 = document.getElementById('dice2'), d3 = document.getElementById('dice3');
-            d1.className = d2.className = d3.className = "cube-shell spinning-active";
-            
-            setTimeout(() => {
-                d1.className = `cube-shell ${d.dice[0]}`; d1.innerText = d.dice[0];
-                d2.className = `cube-shell ${d.dice[1]}`; d2.innerText = d.dice[1];
-                d3.className = `cube-shell ${d.dice[2]}`; d3.innerText = d.dice[2];
-                
-                const elements = ['red','blue','green','yellow','white','pink'];
-                elements.forEach(e => { document.getElementById(`b-${e}`).innerText = "0"; });
-            }, 2000);
+        // Sync and print log changes
+        socket.on('log_update', function(data) {
+            const box = document.getElementById('admin-logs');
+            if(box) box.innerHTML += `<div>${data.msg}</div>`;
+        });
+        socket.on('player_log', function(data) {
+            const box = document.getElementById('user-logs');
+            if(box) box.innerHTML += `<div>${data.msg}</div>`;
+        });
+        socket.on('update_balance', function(data) {
+            document.getElementById('playerBalanceDisplay').innerText = data.coins + " Coins";
+        });
+        socket.on('voucher_generated', function(data) {
+            document.getElementById('voucher-output').innerText = `Token: ${data.token} (${data.amount} Coins)`;
         });
 
-        socket.on('admin_dashboard_update', d => {
-            const me = d.players.find(p => p.username === document.getElementById('username').value);
-            if(me) document.getElementById('player-balance').innerText = me.coins;
+        // 3D Timing Controlled Spin Loop Engine
+        socket.on('dice_spin_start', function() {
+            document.getElementById('dice1').classList.add('spinning');
+            document.getElementById('dice2').classList.add('spinning');
+            document.getElementById('dice3').classList.add('spinning');
 
-            const uLog = document.getElementById('user-log');
-            if(uLog && d.logs) {
-                uLog.innerHTML = d.logs.map(l => `<div><b>${l.username}</b>: ${l.details}</div>`).join('');
-            }
-            
-            const aLog = document.getElementById('admin-log');
-            if(aLog && d.logs) {
-                aLog.innerHTML = d.logs.map(l => `<div><b>[${l.room_id}] ${l.username}</b>: ${l.details}</div>`).join('');
-            }
-
-            const pullTray = document.getElementById('admin-pull-tray');
-            if(pullTray) {
-                pullTray.innerHTML = d.pull_requests.length === 0 ? "No active rope requests." : d.pull_requests.map(u => 
-                    `<div style="display:flex; justify-content:space-between; margin:5px 0; background:rgba(0,0,0,0.2); padding:8px; border-radius:4px;">
-                        <span>User <b>${u}</b> requests rope access</span>
-                        <div>
-                            <button style="width:auto; padding:4px 8px; background:#4cd137; color:#fff;" onclick="socket.emit('admin_rope_action', {username:'${u}', approved:true})">Approve & Spin</button>
-                            <button style="width:auto; padding:4px 8px; background:#ff7675; color:#fff;" onclick="socket.emit('admin_rope_action', {username:'${u}', approved:false})">Disapprove</button>
-                        </div>
-                    </div>`
-                ).join('');
-            }
-
-            const withTray = document.getElementById('admin-withdraw-tray');
-            if(withTray) {
-                withTray.innerHTML = d.withdraw_requests.length === 0 ? "No active withdrawal items." : d.withdraw_requests.map(w => 
-                    `<div style="display:flex; justify-content:space-between; margin:5px 0; background:rgba(0,0,0,0.2); padding:8px; border-radius:4px;">
-                        <span>User <b>${w.username}</b> requested <b>${w.amount} Coins</b></span>
-                        <div>
-                            <button style="width:auto; padding:4px 8px; background:#4cd137; color:#fff;" onclick="socket.emit('admin_withdraw_action', {username:'${w.username}', amount:${w.amount}, approved:true})">Approve</button>
-                            <button style="width:auto; padding:4px 8px; background:#ff7675; color:#fff;" onclick="socket.emit('admin_withdraw_action', {username:'${w.username}', amount:${w.amount}, approved:false})">Disapprove</button>
-                        </div>
-                    </div>`
-                ).join('');
-            }
-
-            const voucherList = document.getElementById('admin-voucher-list');
-            if(voucherList && d.vouchers) {
-                voucherList.innerHTML = d.vouchers.map(v => `<div>Code: <code>${v.code}</code> Value: <b>${v.amount} Coins</b> (Room: ${v.room_id})</div>`).join('');
-            }
-
-            const tableBody = document.getElementById('admin-accounts-table');
-            if (tableBody && d.users) {
-                tableBody.innerHTML = '';
-                d.users.forEach(u => {
-                    if (u.is_super_admin) return; 
-                    
-                    const tr = document.createElement('tr');
-                    tr.style.borderBottom = "1px solid var(--border)";
-                    
-                    const tier = u.is_admin ? "🛠️ Local Admin" : "👤 Standard Player";
-                    const status = u.online 
-                        ? '<span style="color:#4cd137; font-weight:bold;">● Live Online</span>' 
-                        : '<span style="color:#7f8c8d;">○ Offline</span>';
-
-                    tr.innerHTML = `
-                        <td style="padding: 8px;">${u.username}</td>
-                        <td style="padding: 8px;"><code style="background:#111; padding:2px 4px;">${u.room_id}</code></td>
-                        <td style="padding: 8px; color:#f1c40f; font-weight:bold;">${u.coins}</td>
-                        <td style="padding: 8px;">${tier}</td>
-                        <td style="padding: 8px;">${status}</td>
-                        <td style="padding: 8px;">
-                            <button style="background:#ff7675; color:#fff; border:none; padding:4px 8px; font-size:12px; border-radius:4px; width:auto; margin:0;" onclick="pruneAccount('${u.username}')">Prune</button>
-                        </td>
-                    `;
-                    tableBody.appendChild(tr);
-                });
-            }
+            const btn = document.getElementById('pullRopeButton');
+            btn.disabled = true;
+            btn.innerText = "⏳ Spinning Rope Engine...";
+            btn.style.opacity = "0.5";
         });
-    </script>
-</body>
-</html>
+
+        socket.on('dice_spin_stop', function(data) {
+            // Remove animation instantly
+       
