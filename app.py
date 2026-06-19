@@ -86,7 +86,7 @@ def update_admin_panels(room_id):
 
         cursor.execute("SELECT username, password, coins, is_admin FROM users WHERE room_id = %s", (room_id,))
         users_list = cursor.fetchall()
-
+        
         socketio.emit('admin_dashboard_update', {
             "total_coins": total_coins,
             "users": users_list,
@@ -122,19 +122,19 @@ def handle_join_game(data):
 
     conn = get_db_connection()
     if not conn: return emit('login_failed', {"message": "Database disconnected."})
-
+    
     try:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM users WHERE username = %s AND password = %s", (username, password))
         user = cursor.fetchone()
-
+        
         if not user:
             return emit('login_failed', {"message": "Invalid username or password configuration."})
-
+        
         # Rule 2: Strict cross-room verification checks
         if user['is_admin'] == 0 and user['room_id'] != room_id:
             return emit('login_failed', {"message": f"Access Denied: Enrolled in {user['room_id'].replace('_',' ')} only."})
-
+        
         # If a Sub-Server Admin logs in, tie them strictly to their assigned server room
         if user['is_admin'] == 1:
             room_id = user['room_id']
@@ -148,7 +148,7 @@ def handle_join_game(data):
             "room_id": room_id, 
             "coins": user['coins']
         })
-
+        
         if user['is_admin'] == 1:
             update_admin_panels(room_id)
         else:
@@ -171,7 +171,7 @@ def handle_bets(data):
     client_bets = data.get('bets', {})
 
     total_stake = sum(max(0, int(v)) for v in client_bets.values())
-
+    
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT coins FROM users WHERE username = %s", (username,))
@@ -191,14 +191,14 @@ def handle_bets(data):
 def handle_req_pull():
     user_meta = online_users.get(request.sid)
     if not user_meta or user_meta['is_admin']: return
-
+    
     room_id = user_meta['room_id']
     username = user_meta['username']
 
     if room_id not in pull_requests: pull_requests[room_id] = []
     if username not in pull_requests[room_id]:
         pull_requests[room_id].append(username)
-
+        
     update_admin_panels(room_id)
     emit('player_log', {"msg": "Rope pull permission pending admin authorization."})
 
@@ -229,14 +229,14 @@ def admin_pull_rope():
 def execute_dice_roll_sequence(room_id):
     # Step 1: Broadcast asynchronous animation trigger signals down to the room channel
     socketio.emit('dice_spin_start', {}, to=room_id)
-
+    
     # Precise calculation delay loop block
     socketio.sleep(3.0)
 
     # Step 2: Roll the dice
     res1, res2, res3 = random.choice(COLORS), random.choice(COLORS), random.choice(COLORS)
     rolled_results = [res1, res2, res3]
-
+    
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -281,7 +281,7 @@ def execute_dice_roll_sequence(room_id):
 
     cursor.close()
     conn.close()
-
+    
     # Step 4: Disengage rolling frames on client threads
     socketio.emit('dice_spin_stop', {"results": rolled_results}, to=room_id)
     update_admin_panels(room_id)
@@ -309,7 +309,7 @@ def handle_withdraw(data):
 
     if room_id not in pending_withdraws: pending_withdraws[room_id] = []
     pending_withdraws[room_id].append({"id": str(uuid.uuid4())[:8], "username": username, "amount": amount})
-
+    
     update_admin_panels(room_id)
     emit('player_log', {"msg": f"Cashout processing ticket registered for {amount} coins."})
 
@@ -332,14 +332,14 @@ def resolve_withdraw(data):
         cursor = conn.cursor()
         cursor.execute("SELECT coins FROM users WHERE username = %s", (target_ticket['username'],))
         ub = cursor.fetchone()
-
+        
         if ub and ub['coins'] >= target_ticket['amount']:
             new_bal = ub['coins'] - target_ticket['amount']
             cursor.execute("UPDATE users SET coins = %s WHERE username = %s", (new_bal, target_ticket['username']))
             conn.commit()
-
+            
             socketio.emit('log_update', {"msg": f"✅ Cashout approved: {target_ticket['username']} ({target_ticket['amount']}c)."}, to=room_id)
-
+            
             for sid, meta in online_users.items():
                 if meta['username'] == target_ticket['username']:
                     socketio.emit('update_balance', {"coins": new_bal}, to=sid)
@@ -348,7 +348,7 @@ def resolve_withdraw(data):
         conn.close()
     else:
          socketio.emit('log_update', {"msg": f"❌ Cashout denied for {target_ticket['username']}."}, to=room_id)
-
+    
     update_admin_panels(room_id)
 
 @socketio.on('generate_voucher')
@@ -362,7 +362,7 @@ def make_voucher(data):
 
     token = "TOK-" + ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
     if room_id not in vouchers: vouchers[room_id] = {}
-
+    
     vouchers[room_id][token] = amount
     emit('voucher_generated', {"token": token, "amount": amount})
 
@@ -377,12 +377,12 @@ def claim_voucher(data):
 
     if room_id in vouchers and token in vouchers[room_id]:
         val = vouchers[room_id].pop(token)
-
+        
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT coins FROM users WHERE username = %s", (username,))
         ub = cursor.fetchone()
-
+        
         new_bal = ub['coins'] + val
         cursor.execute("UPDATE users SET coins = %s WHERE username = %s", (new_bal, username))
         conn.commit()
@@ -451,74 +451,3 @@ init_db()
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
-
-
-Index.html
-
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Multi-Server Perya Game</title>
-    <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js"></script>
-    <style>
-        :root {
-            --bg-color: #1a1a1a;
-            --panel-color: #222222;
-            --text-color: #ffffff;
-            --border-color: #444444;
-        }
-        .light-theme {
-            --bg-color: #f5f6fa;
-            --panel-color: #ffffff;
-            --text-color: #2f3640;
-            --border-color: #dcdde1;
-        }
-        body { 
-            background-color: var(--bg-color); 
-            color: var(--text-color); 
-            font-family: sans-serif; 
-            text-align: center; 
-            padding: 20px;
-            transition: background 0.3s, color 0.3s;
-        }
-        .panel { 
-            background: var(--panel-color); 
-            max-width: 800px; 
-            margin: 20px auto; 
-            padding: 25px; 
-            border-radius: 10px; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            border: 1px solid var(--border-color);
-            text-align: left;
-        }
-        select, input, button { padding: 10px; margin: 8px 0; font-size: 15px; border-radius: 5px; border: 1px solid var(--border-color); width: 100%; box-sizing: border-box; background: var(--panel-color); color: var(--text-color); }
-        button { background: #e1b12c; color: #000; font-weight: bold; cursor: pointer; border: none; transition: 0.2s; }
-        button:hover { background: #fbc531; }
-        .flex-grid { display: flex; gap: 15px; flex-wrap: wrap; }
-        .col { flex: 1; min-width: 250px; }
-
-        /* 3D Dice Layout */
-        .dice-container { display: flex; justify-content: center; gap: 30px; margin: 30px auto; min-height: 100px; }
-        .cube { width: 80px; height: 80px; position: relative; transform-style: preserve-3d; transition: transform 0.5s ease-out; }
-        .face { position: absolute; width: 80px; height: 80px; border: 2px solid #000; border-radius: 12px; opacity: 0.95; }
-
-        /* 3D Face Transforms */
-        .f-red    { background: #ff2a2a; transform: rotateY(0deg) translateZ(40px); }
-        .f-blue   { background: #2a75ff; transform: rotateY(90deg) translateZ(40px); }
-        .f-green  { background: #2aff53; transform: rotateY(180deg) translateZ(40px); }
-        .f-yellow { background: #ffeb2a; transform: rotateY(-90deg) translateZ(40px); }
-        .f-white  { background: #ffffff; transform: rotateX(90deg) translateZ(40px); }
-        .f-pink   { background: #ff2ae2; transform: rotateX(-90deg) translateZ(40px); }
-
-        .spinning { animation: tumble 0.15s infinite linear; }
-        @keyframes tumble {
-            0% { transform: rotateX(0deg) rotateY(0deg); }
-            100% { transform: rotateX(360deg) rotateY(360deg); }
-        }
-
-        /* Betting Table Styles */
-        .betting-table { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 20px 0; }
-        .bet-card { padding: 15px; border-radius: 8px; text-align: center; color: #000; font-weight: bold; cursor: pointer; border: 3px solid transparent; }
-  
